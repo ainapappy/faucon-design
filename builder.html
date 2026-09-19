@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Éditeur — Traitement des nouveaux leads — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="builder">
+            <!-- ================= Barre supérieure ================= -->
+            <header class="builder-topbar">
+                <a class="icon-btn" href="workflows.html" aria-label="Retour aux workflows">
+                    <ic name="arrow-left" :size="17"></ic>
+                </a>
+                <div class="builder-title">
+                    <ic name="workflow" :size="15" style="color:var(--muted-foreground)"></ic>
+                    <input v-model="wfName" aria-label="Nom du workflow">
+                    <span class="badge badge-outline">{{ wfStatus }}</span>
+                </div>
+                <span class="save-state">
+                    <template v-if="saveState === 'saved'">
+                        <ic name="circle-check" :size="13"></ic> Enregistré · {{ savedAt }}
+                    </template>
+                    <template v-else>
+                        <span class="spinner" style="width:12px; height:12px; border-width:2px; color:var(--muted-foreground);"></span>
+                        Enregistrement…
+                    </template>
+                </span>
+
+                <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                    <div class="zoom-controls">
+                        <button class="icon-btn" @click="zoomBy(1 / 1.15)" aria-label="Zoom arrière"><ic name="minus" :size="14"></ic></button>
+                        <span class="zoom-value">{{ zoomPercent }} %</span>
+                        <button class="icon-btn" @click="zoomBy(1.15)" aria-label="Zoom avant"><ic name="plus" :size="14"></ic></button>
+                        <button class="icon-btn" @click="zoomFit" aria-label="Ajuster à l'écran"><ic name="maximize-2" :size="13"></ic></button>
+                    </div>
+                    <button class="icon-btn" @click="paletteOpen = !paletteOpen" aria-label="Palette de nodes"
+                            :style="paletteOpen ? 'color:var(--foreground)' : ''">
+                        <ic name="blocks" :size="16"></ic>
+                    </button>
+                    <button class="icon-btn" @click="drawerOpen = !drawerOpen" aria-label="Journal d'exécution">
+                        <ic name="terminal" :size="16"></ic>
+                    </button>
+                    <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                        <ic :name="isDark() ? 'sun' : 'moon'" :size="16"></ic>
+                    </button>
+                    <button class="btn btn-primary" @click="runWorkflow" :disabled="running">
+                        <span v-if="running" class="spinner" style="border-top-color:currentColor;"></span>
+                        <ic v-else name="play" :size="14"></ic>
+                        {{ running ? 'En cours…' : 'Exécuter' }}
+                    </button>
+                </div>
+            </header>
+
+            <div class="builder-body">
+                <!-- ================= Palette de nodes ================= -->
+                <aside class="palette" :class="{ hidden: !paletteOpen }">
+                    <div class="input-wrap pal-search">
+                        <ic name="search" :size="14"></ic>
+                        <input class="input" v-model="palQuery" placeholder="Rechercher un node…">
+                    </div>
+
+                    <div class="pal-group" v-for="group in palette" :key="group.key">
+                        <p class="pal-group-title">
+                            <span class="pal-dot" :style="{ background: group.color }"></span>
+                            {{ group.label }}
+                        </p>
+                        <button class="pal-item" v-for="item in group.items" :key="item.type"
+                                @pointerdown="startDragNew(item.type, $event)" :title="item.desc">
+                            <ic :name="item.icon" :size="15" :style="{ color: group.color }"></ic>
+                            {{ item.label }}
+                            <small>glisser</small>
+                        </button>
+                    </div>
+
+                    <p class="field-hint" style="padding: 8px 4px 0; border-top:1px dashed var(--border); margin-top:4px;">
+                        Astuce : reliez une <b>sortie</b> (rond droit) à une <b>entrée</b> (rond gauche).
+                        <span class="kbd">Suppr</span> supprime la sélection.
+                    </p>
+                </aside>
+
+                <!-- ================= Canvas ================= -->
+                <div class="canvas-viewport" ref="viewport" @pointerdown="onViewportDown">
+                    <div class="canvas-grid" :style="{
+                        backgroundPosition: view.x + 'px ' + view.y + 'px',
+                        backgroundSize: (22 * view.zoom) + 'px ' + (22 * view.zoom) + 'px'
+                    }"></div>
+
+                    <div class="canvas-world" :style="{
+                        width: worldSize.w + 'px',
+                        height: worldSize.h + 'px',
+                        transform: 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.zoom + ')'
+                    }">
+                        <!-- arêtes -->
+                        <svg class="edge-layer" :width="worldSize.w" :height="worldSize.h">
+                            <g v-for="e in edges" :key="e.id">
+                                <path class="edge-path"
+                                      :class="{ selected: selection && selection.kind === 'edge' && selection.id === e.id, flow: e.flowing }"
+                                      :d="edgePath(e)"
+                                      :style="edgeStyle(e)"
+                                      @pointerdown.stop="selectEdge(e.id)"></path>
+                                <text v-if="e.fromPort !== 'out'" class="edge-label"
+                                      :x="edgeLabelPos(e).x" :y="edgeLabelPos(e).y" text-anchor="middle">{{ e.fromPort }}</text>
+                            </g>
+                            <path v-if="connecting" class="edge-connecting" :d="connectPath"></path>
+                        </svg>
+
+                        <!-- nodes -->
+                        <div v-for="node in nodes" :key="node.id" class="node"
+                             :class="{
+                                 selected: selection && selection.kind === 'node' && selection.id === node.id,
+                                 running: node.status === 'running',
+                                 ok: node.status === 'ok',
+                                 error: node.status === 'error',
+                                 dragging: drag && drag.kind === 'node' && drag.id === node.id && drag.moved
+                             }"
+                             :style="nodeStyle(node)"
+                             @pointerdown="onNodeDown(node, $event)">
+                            <div class="node-head">
+                                <span class="node-icon"><ic :name="NODE_TYPES[node.type].icon" :size="15"></ic></span>
+                                <span class="node-titles">
+                                    <b>{{ node.title }}</b>
+                                    <small>{{ NODE_TYPES[node.type].label }}</small>
+                                </span>
+                                <span class="node-status" :class="node.status">
+                                    <span v-if="node.status === 'running'" class="spinner" style="border-top-color:currentColor;"></span>
+                                    <ic v-else-if="node.status === 'ok'" name="circle-check" :size="15"></ic>
+                                    <ic v-else-if="node.status === 'error'" name="circle-x" :size="15"></ic>
+                                </span>
+                            </div>
+                            <div class="node-foot">
+                                <ic :name="CATS[NODE_TYPES[node.type].cat].icon" :size="11"></ic>
+                                {{ CATS[NODE_TYPES[node.type].cat].label }}
+                            </div>
+
+                            <span v-if="NODE_TYPES[node.type].inputs" class="port port-in" :data-node="node.id"
+                                  :title="'Entrée — ' + node.title"></span>
+                            <span v-for="p in NODE_TYPES[node.type].outputs" :key="p.id" class="port port-out"
+                                  :class="{ 'port-connecting': connecting && connecting.fromId === node.id && connecting.fromPort === p.id }"
+                                  :style="portStyle(p)"
+                                  :title="'Sortie ' + (p.label || '') + ' — ' + node.title"
+                                  @pointerdown="onPortDown(node, p, $event)"></span>
+                        </div>
+
+                        <div v-if="!nodes.length" style="position:absolute; top:200px; left:340px; color:var(--muted-foreground); font-size:13.5px;">
+                            Déposez un node depuis la palette pour commencer.
+                        </div>
+                    </div>
+
+                    <!-- ghost de création -->
+                    <div v-if="dragNew" class="drag-ghost" :style="{ left: dragNew.x + 'px', top: dragNew.y + 'px' }">
+                        <ic :name="NODE_TYPES[dragNew.type].icon" :size="14"></ic>
+                        {{ NODE_TYPES[dragNew.type].label }}
+                    </div>
+                </div>
+
+                <!-- ================= Inspecteur ================= -->
+                <aside class="inspector" :class="{ hidden: !inspectorOpen }">
+                    <!-- node sélectionné -->
+                    <template v-if="selectedNode">
+                        <div class="inspector-head">
+                            <span class="node-icon" :style="{ '--node-color': nodeColor }">
+                                <ic :name="selectedType.icon" :size="15"></ic>
+                            </span>
+                            <div style="flex:1; min-width:0;">
+                                <b style="font-size:13.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ selectedNode.title }}</b>
+                                <span class="text-xs text-muted">{{ selectedType.label }} · {{ CATS[selectedType.cat].label }}</span>
+                            </div>
+                            <button class="icon-btn" @click="inspectorOpen = false" aria-label="Fermer l'inspecteur">
+                                <ic name="panel-right-close" :size="15"></ic>
+                            </button>
+                        </div>
+
+                        <div class="tabs" style="margin:12px 16px 0;">
+                            <button class="tab" :class="{ active: inspectorTab === 'settings' }" @click="inspectorTab = 'settings'">Paramètres</button>
+                            <button class="tab" :class="{ active: inspectorTab === 'in' }" @click="inspectorTab = 'in'">Entrées</button>
+                            <button class="tab" :class="{ active: inspectorTab === 'out' }" @click="inspectorTab = 'out'">Sorties</button>
+                        </div>
+
+                        <div class="inspector-body" v-if="inspectorTab === 'settings'">
+                            <div class="field">
+                                <label class="label">Nom du node</label>
+                                <input class="input" v-model="selectedNode.title">
+                            </div>
+
+                            <div class="field" v-for="f in selectedType.fields" :key="f.key">
+                                <label class="label">{{ f.label }}</label>
+                                <select v-if="f.type === 'select'" class="select" v-model="selectedNode.config[f.key]">
+                                    <option v-for="o in f.options" :key="o" :value="o">{{ o }}</option>
+                                </select>
+                                <textarea v-else-if="f.type === 'textarea'" class="textarea" :class="{ 'text-mono': f.mono }"
+                                          v-model="selectedNode.config[f.key]" :placeholder="f.placeholder" rows="3"></textarea>
+                                <div v-else-if="f.type === 'range'" class="range-row">
+                                    <input type="range" :min="f.min" :max="f.max" :step="f.step"
+                                           v-model.number="selectedNode.config[f.key]">
+                                    <span class="text-mono text-sm">{{ selectedNode.config[f.key] }}</span>
+                                </div>
+                                <input v-else class="input" :class="{ 'text-mono': f.mono }"
+                                       v-model="selectedNode.config[f.key]" :placeholder="f.placeholder">
+                            </div>
+
+                            <div class="separator"></div>
+                            <button class="btn btn-destructive btn-sm" style="width:100%;" @click="deleteSelected">
+                                <ic name="trash-2" :size="14"></ic> Supprimer ce node
+                            </button>
+                        </div>
+
+                        <div class="inspector-body" v-else>
+                            <p class="field-hint">Aperçu issu de la dernière exécution de test.</p>
+                            <div class="json-block" v-html="jsonHtml(exampleFor(selectedType.cat))"></div>
+                            <div class="alert alert-info" style="font-size:12.5px;">
+                                <ic name="braces" :size="14"></ic>
+                                <div>Référencez ces valeurs avec <span class="text-mono" v-pre>{{ node.variable }}</span> dans les nodes suivants.</div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- rien de sélectionné -->
+                    <template v-else>
+                        <div class="inspector-head">
+                            <b style="font-size:13.5px;">Inspecteur</b>
+                            <button class="icon-btn" style="margin-left:auto" @click="inspectorOpen = false" aria-label="Fermer l'inspecteur">
+                                <ic name="panel-right-close" :size="15"></ic>
+                            </button>
+                        </div>
+                        <div class="inspector-empty">
+                            <ic name="move" :size="24"></ic>
+                            <p>Sélectionnez un node pour éditer ses paramètres,<br>
+                                ou déposez-en un depuis la palette.<br>
+                                Glissez d'une sortie vers une entrée pour relier.</p>
+                        </div>
+                        <div class="inspector-body" style="border-top:1px solid var(--border);">
+                            <div class="field">
+                                <label class="label">Statut du workflow</label>
+                                <div style="display:flex; gap:8px;">
+                                    <button class="btn btn-outline btn-sm" :class="{ 'btn-ink': wfStatus === 'Brouillon' }" style="flex:1; border-color:var(--border);" @click="wfStatus = 'Brouillon'">Brouillon</button>
+                                    <button class="btn btn-outline btn-sm" :class="{ 'btn-ink': wfStatus === 'Actif' }" style="flex:1; border-color:var(--border);" @click="wfStatus = 'Actif'">Activer</button>
+                                </div>
+                            </div>
+                            <p class="field-hint">Un workflow actif répond à son déclencheur dès qu'il est enregistré.</p>
+                        </div>
+                    </template>
+                </aside>
+
+                <!-- ================= Tiroir d'exécution ================= -->
+                <div class="exec-drawer" :class="{ open: drawerOpen }">
+                    <div class="exec-drawer-head">
+                        <ic name="terminal" :size="14" style="color:var(--muted-foreground)"></ic>
+                        <b style="font-size:13px;">Journal d'exécution</b>
+                        <span class="badge badge-info" v-if="running"><span class="spinner" style="width:10px;height:10px;border-width:1.5px;"></span> En cours</span>
+                        <button class="icon-btn" style="margin-left:auto; width:28px; height:28px;" @click="drawerOpen = false" aria-label="Fermer le journal">
+                            <ic name="x" :size="14"></ic>
+                        </button>
+                    </div>
+                    <div class="exec-logs" ref="logs">
+                        <p class="log-line" v-for="(l, i) in logs" :key="i">
+                            <time>{{ l.t }}</time>
+                            <span class="log-node">{{ l.node }}</span>
+                            <span class="log-msg" :class="l.level">{{ l.msg }}</span>
+                        </p>
+                        <p v-if="!logs.length" class="text-muted" style="font-family:var(--font-sans); padding:6px 0;">
+                            Lancez <b>Exécuter</b> pour tester le graphe node par node.
+                        </p>
+                    </div>
+                    <div class="exec-summary" v-if="runSummary && !running">
+                        <ic name="circle-check" :size="15" style="color:var(--success)"></ic>
+                        <b>Succès</b> — {{ runSummary.nodes }} nodes · {{ (runSummary.ms / 1000).toFixed(1) }} s
+                        <a class="btn btn-ghost btn-sm" href="executions.html" style="margin-left:auto;">Voir l'exécution complète <ic name="arrow-up-right" :size="13"></ic></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/builder.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        /* JSON « coloré » pour les aperçus entrées/sorties */
+        function jsonHtml(obj) {
+            const json = JSON.stringify(obj, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+            return json
+                .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+                .replace(/: "([^"]*)"/g, ': <span class="json-str">"$1"</span>')
+                .replace(/: (-?\d+\.?\d*)/g, ': <span class="json-num">$1</span>')
+                .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>');
+        }
+
+        createApp({
+            mixins: [FauconUI.builderMixin],
+            data() {
+                return { palQuery: '' };
+            },
+            computed: {
+                palette() {
+                    const q = this.palQuery.trim().toLowerCase();
+                    if (!q) {
+                        return this.paletteGroups;
+                    }
+                    return this.paletteGroups
+                        .map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q)) }))
+                        .filter((g) => g.items.length);
+                },
+            },
+            methods: {
+                jsonHtml,
+                exampleFor(cat) {
+                    return FauconUI.builderHelpers.NODE_EXAMPLES[cat] || { ok: true };
+                },
+            },
+            mounted() {
+                this.$nextTick(this.zoomFit);
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

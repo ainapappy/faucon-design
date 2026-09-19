@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Templates — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="app">
+            <!-- ================= Barre latérale ================= -->
+            <aside class="sidebar" :class="{ collapsed: ui.collapsed }">
+                <div class="sidebar-header">
+                    <a class="brand" href="dashboard.html">
+                        <img src="img/logo.svg" alt="Faucon" width="26" height="26">
+                        <span class="brand-name">Faucon</span>
+                    </a>
+                    <div style="position:relative" v-click-outside="() => ui.teamOpen = false">
+                        <button class="team-switch" @click="ui.teamOpen = !ui.teamOpen">
+                            <span class="avatar avatar-gradient">SF</span>
+                            <span class="team-switch-label">
+                                <b>{{ currentTeam }}</b>
+                                <small>Équipe · Plan Pro</small>
+                            </span>
+                            <ic name="chevrons-up-down" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.teamOpen" style="top:calc(100% + 6px); left:0; right:0;">
+                                <p class="dropdown-label">Équipes</p>
+                                <button class="dropdown-item" v-for="t in teams" :key="t.name" @click="currentTeam = t.name; ui.teamOpen = false">
+                                    <span class="avatar avatar-sm avatar-gradient">{{ t.initials }}</span>
+                                    <span style="flex:1">
+                                        <span style="display:block">{{ t.name }}</span>
+                                        <small class="text-xs text-muted">{{ t.role }}</small>
+                                    </span>
+                                    <ic v-if="t.name === currentTeam" name="check" :size="14" style="color:var(--brand-ink)"></ic>
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item"><ic name="plus" :size="15"></ic> Créer une équipe</button>
+                                <button class="dropdown-item"><ic name="user-plus" :size="15"></ic> Inviter un membre</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <nav class="nav">
+                    <p class="nav-label">Pilotage</p>
+                    <a class="nav-item" href="dashboard.html"><ic name="layout-dashboard" :size="16"></ic><span>Tableau de bord</span></a>
+                    <a class="nav-item" href="executions.html"><ic name="activity" :size="16"></ic><span>Exécutions</span><span class="nav-badge">3</span></a>
+                    <p class="nav-label">Automatisation</p>
+                    <a class="nav-item" href="workflows.html"><ic name="workflow" :size="16"></ic><span>Workflows</span></a>
+                    <a class="nav-item" href="builder.html"><ic name="git-branch" :size="16"></ic><span>Éditeur</span></a>
+                    <a class="nav-item active" href="templates.html"><ic name="layers" :size="16"></ic><span>Templates</span></a>
+                    <p class="nav-label">Configuration</p>
+                    <a class="nav-item" href="settings.html"><ic name="settings" :size="16"></ic><span>Paramètres</span></a>
+                    <a class="nav-item" href="settings.html#integrations"><ic name="key-round" :size="16"></ic><span>Intégrations</span></a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div style="position:relative" v-click-outside="() => ui.userOpen = false">
+                        <button class="user-card" @click="ui.userOpen = !ui.userOpen">
+                            <span class="avatar">AP</span>
+                            <span class="user-meta">
+                                <b>Aina Papy</b>
+                                <small>aina@studiofaucon.dev</small>
+                            </span>
+                            <ic name="ellipsis" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.userOpen" style="bottom:calc(100% + 8px); left:0; right:0;">
+                                <button class="dropdown-item"><ic name="user" :size="15"></ic> Mon profil</button>
+                                <button class="dropdown-item"><ic name="settings" :size="15"></ic> Paramètres</button>
+                                <button class="dropdown-item" @click="toggleTheme(); ui.userOpen = false">
+                                    <ic :name="isDark() ? 'sun' : 'moon'" :size="15"></ic>
+                                    {{ isDark() ? 'Thème clair' : 'Thème sombre' }}
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item danger"><ic name="log-out" :size="15"></ic> Se déconnecter</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ================= Zone principale ================= -->
+            <div class="main">
+                <header class="topbar">
+                    <button class="icon-btn" @click="toggleSidebar" aria-label="Replier le menu">
+                        <ic :name="ui.collapsed ? 'panel-left-open' : 'panel-left-close'" :size="17"></ic>
+                    </button>
+                    <nav class="crumbs">
+                        <span>{{ currentTeam }}</span>
+                        <ic name="chevron-right" :size="13"></ic>
+                        <b>Templates</b>
+                    </nav>
+                    <button class="topbar-search" @click="openSearch">
+                        <ic name="search" :size="15"></ic> Rechercher… <span class="kbd">⌘K</span>
+                    </button>
+                    <div class="topbar-actions">
+                        <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                            <ic :name="isDark() ? 'sun' : 'moon'" :size="17"></ic>
+                        </button>
+                        <div style="position:relative" v-click-outside="() => ui.notifOpen = false">
+                            <button class="icon-btn" @click="ui.notifOpen = !ui.notifOpen" aria-label="Notifications">
+                                <ic name="bell" :size="17"></ic>
+                                <span class="notif-dot" v-if="unreadCount"></span>
+                            </button>
+                            <transition name="pop">
+                                <div class="dropdown" v-if="ui.notifOpen" style="top:calc(100% + 8px); right:0; width:340px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 9px 4px;">
+                                        <p class="dropdown-label" style="padding:0">Notifications</p>
+                                        <button class="btn-link" style="font-size:12px; height:auto" @click="markAllRead">Tout marquer lu</button>
+                                    </div>
+                                    <div class="dropdown-sep"></div>
+                                    <button class="dropdown-item" v-for="n in notifications" :key="n.id" style="align-items:flex-start; gap:10px; white-space:normal;">
+                                        <ic :name="n.icon" :size="16" :style="{ color: n.color, marginTop: '2px', flex: 'none' }"></ic>
+                                        <span style="flex:1">
+                                            <span style="display:block; font-size:13px; line-height:1.4;">{{ n.text }}</span>
+                                            <small style="color:var(--muted-foreground); font-size:11px;">{{ n.time }}</small>
+                                        </span>
+                                        <span v-if="n.unread" style="width:7px; height:7px; border-radius:99px; background:var(--brand); margin-top:6px; flex:none;"></span>
+                                    </button>
+                                </div>
+                            </transition>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                    </div>
+                </header>
+
+                <main class="page">
+                    <!-- En-tête -->
+                    <div class="page-header anim-in d-1">
+                        <div>
+                            <h1 class="page-title">Templates</h1>
+                            <p class="page-desc">Démarrez d'un modèle prêt à l'emploi — le graphe est dupliqué dans votre équipe, tout est éditable.</p>
+                        </div>
+                    </div>
+
+                    <!-- Catégories -->
+                    <div class="chip-row anim-in d-2" style="margin-bottom:20px;">
+                        <button class="chip" v-for="c in categories" :key="c.key"
+                                :class="{ active: cat === c.key }" @click="cat = c.key">
+                            {{ c.label }} <span class="text-muted">{{ c.count }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Grille -->
+                    <div class="tpl-grid">
+                        <div class="card card-hover tpl-card tpl-featured anim-in d-2" v-if="cat === 'all'">
+                            <div class="tpl-preview" style="min-height:170px;">
+                                <div style="width:100%;" v-html="tplSvg(templates[0].graph)"></div>
+                            </div>
+                            <div class="tpl-body" style="padding:18px 20px 20px;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <h3 style="font-size:16px;">{{ templates[0].name }}</h3>
+                                    <span class="badge badge-brand"><ic name="star"></ic> Populaire</span>
+                                </div>
+                                <p style="font-size:13.5px; max-width:58ch;">{{ templates[0].desc }}</p>
+                                <div class="tpl-foot">
+                                    <div class="tpl-meta" style="font-size:12.5px;">
+                                        <span><ic name="git-branch"></ic>{{ templates[0].nodes }} nodes</span>
+                                        <span><ic name="download"></ic>{{ templates[0].uses }} utilisations</span>
+                                        <span><ic name="star"></ic>{{ templates[0].rating }} / 5</span>
+                                    </div>
+                                    <button class="btn btn-primary" @click="use(templates[0])">
+                                        <ic name="copy" :size="14"></ic> Utiliser ce template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card card-hover tpl-card anim-in" v-for="(t, i) in filtered" :key="t.name" :class="'d-' + (i % 6 + 1)">
+                            <div class="tpl-preview" v-html="tplSvg(t.graph)"></div>
+                            <div class="tpl-body">
+                                <h3>{{ t.name }}</h3>
+                                <p class="clamp-2">{{ t.desc }}</p>
+                                <div class="tpl-foot">
+                                    <div class="tpl-meta">
+                                        <span><ic name="git-branch"></ic>{{ t.nodes }}</span>
+                                        <span><ic name="download"></ic>{{ t.uses }}</span>
+                                        <span class="badge badge-secondary" style="font-size:10.5px;">{{ t.cat }}</span>
+                                    </div>
+                                    <button class="btn btn-outline btn-sm" @click="use(t)">
+                                        Utiliser <ic name="arrow-up-right" :size="13"></ic>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        const C = {
+            trigger: 'var(--cat-1)',
+            data: 'var(--cat-2)',
+            ai: 'var(--cat-3)',
+            action: 'var(--cat-4)',
+            logic: 'var(--cat-5)',
+        };
+
+        /* Générateur d'aperçu de graphe (SVG) */
+        function tplSvg(spec) {
+            const W = 70; const H = 22;
+            const mid = (n) => n.y + H / 2;
+            const edges = spec.edges.map(([a, b]) => {
+                const A = spec.nodes[a]; const B = spec.nodes[b];
+                const x1 = A.x + W; const y1 = mid(A); const x2 = B.x; const y2 = mid(B);
+                const dx = Math.max(18, Math.abs(x2 - x1) * 0.45);
+                return `<path class="tpl-edge" d="M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}"/>`;
+            }).join('');
+            const nodes = spec.nodes.map((n) => `
+                <rect class="tpl-node" x="${n.x}" y="${n.y}" width="${W}" height="${H}" rx="7"></rect>
+                <rect x="${n.x}" y="${n.y}" width="${W}" height="${H}" rx="7" fill="${n.color}" opacity="0.13"></rect>
+                <circle cx="${n.x + 10}" cy="${mid(n)}" r="3" fill="${n.color}"></circle>
+                <text x="${n.x + 19}" y="${mid(n) + 2.8}" font-size="7.5" fill="var(--foreground)" opacity="0.72"
+                      font-family="Instrument Sans, sans-serif" font-weight="500">${n.label}</text>`).join('');
+            return `<svg viewBox="0 0 260 ${spec.h || 96}" style="width:100%; height:100%;">${edges}${nodes}</svg>`;
+        }
+
+        createApp({
+            mixins: [FauconUI.shellMixin],
+            data() {
+                return {
+                    cat: 'all',
+                    templates: [
+                        {
+                            name: 'Support client IA',
+                            desc: 'Un message client arrive par webhook, l’IA le classe (question, réclamation, lead), rédige une réponse contextuelle et la relaie par e-mail. Les réclamations sont escaladées à l’équipe.',
+                            cat: 'Support', nodes: 5, uses: 1284, rating: '4,9', featured: true,
+                            graph: {
+                                h: 110,
+                                nodes: [
+                                    { x: 6, y: 44, label: 'Webhook', color: C.trigger },
+                                    { x: 100, y: 12, label: 'IA · classe', color: C.ai },
+                                    { x: 100, y: 76, label: 'IA · réponse', color: C.ai },
+                                    { x: 192, y: 12, label: 'Email', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2], [2, 3]],
+                            },
+                        },
+                        {
+                            name: 'Veille de marché',
+                            desc: 'Chaque matin à 8 h, récupère les flux RSS concurrents, résume avec l’IA et publie la synthèse dans Slack.',
+                            cat: 'Marketing', nodes: 4, uses: 862,
+                            graph: {
+                                nodes: [
+                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
+                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
+                                    { x: 186, y: 10, label: 'IA · résumé', color: C.ai },
+                                    { x: 186, y: 66, label: 'Message', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2], [1, 3]],
+                            },
+                        },
+                        {
+                            name: 'Onboarding lead',
+                            desc: 'Capture un lead, l’enrichit, vérifie sa qualité puis déclenche la séquence de bienvenue adaptée.',
+                            cat: 'Ventes', nodes: 5, uses: 731,
+                            graph: {
+                                h: 110,
+                                nodes: [
+                                    { x: 6, y: 44, label: 'Webhook', color: C.trigger },
+                                    { x: 96, y: 44, label: 'IA · score', color: C.ai },
+                                    { x: 186, y: 10, label: 'CRM', color: C.data },
+                                    { x: 186, y: 78, label: 'Email', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2], [1, 3]],
+                            },
+                        },
+                        {
+                            name: 'Publication réseaux sociaux',
+                            desc: 'Génère un post à partir des notes de release, le filtre selon la charte, puis le programme.',
+                            cat: 'Marketing', nodes: 4, uses: 545,
+                            graph: {
+                                nodes: [
+                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
+                                    { x: 96, y: 38, label: 'IA · post', color: C.ai },
+                                    { x: 186, y: 10, label: 'Filtre', color: C.logic },
+                                    { x: 186, y: 66, label: 'HTTP', color: C.data },
+                                ],
+                                edges: [[0, 1], [1, 2], [2, 3]],
+                            },
+                        },
+                        {
+                            name: 'Surveillance des prix',
+                            desc: 'Interroge les pages produits toutes les heures, compare aux seuils et alerte si un prix baisse.',
+                            cat: 'Données', nodes: 4, uses: 428,
+                            graph: {
+                                nodes: [
+                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
+                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
+                                    { x: 186, y: 10, label: 'Condition', color: C.logic },
+                                    { x: 186, y: 66, label: 'Message', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2], [2, 3]],
+                            },
+                        },
+                        {
+                            name: 'Résumé de PR GitHub',
+                            desc: 'À chaque PR ouverte, résume le diff pour les relecteurs et poste le résumé dans la PR.',
+                            cat: 'Dev', nodes: 3, uses: 396,
+                            graph: {
+                                nodes: [
+                                    { x: 6, y: 38, label: 'Webhook', color: C.trigger },
+                                    { x: 100, y: 38, label: 'IA · résumé', color: C.ai },
+                                    { x: 192, y: 38, label: 'Message', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2]],
+                            },
+                        },
+                        {
+                            name: 'Qualité des données CRM',
+                            desc: 'Audit hebdomadaire des contacts : détecte les doublons et champs manquants, rapporte par e-mail.',
+                            cat: 'Données', nodes: 4, uses: 214,
+                            graph: {
+                                nodes: [
+                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
+                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
+                                    { x: 186, y: 10, label: 'Transform', color: C.data },
+                                    { x: 186, y: 66, label: 'Email', color: C.action },
+                                ],
+                                edges: [[0, 1], [1, 2], [2, 3]],
+                            },
+                        },
+                    ],
+                };
+            },
+            computed: {
+                categories() {
+                    const counts = {};
+                    this.templates.forEach((t) => {
+                        counts[t.cat] = (counts[t.cat] || 0) + 1;
+                    });
+                    return [
+                        { key: 'all', label: 'Tous', count: this.templates.length },
+                        ...Object.keys(counts).map((k) => ({ key: k, label: k, count: counts[k] })),
+                    ];
+                },
+                filtered() {
+                    return this.templates.filter((t) => !t.featured || this.cat !== 'all')
+                        .filter((t) => this.cat === 'all' || t.cat === this.cat)
+                        .filter((t) => !t.featured);
+                },
+            },
+            methods: {
+                tplSvg,
+                use(t) {
+                    this.$toast({ title: 'Template dupliqué', description: `« ${t.name} » ajouté à vos workflows — ouvrez l’éditeur.`, type: 'success' });
+                    setTimeout(() => { window.location.href = 'builder.html'; }, 900);
+                },
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

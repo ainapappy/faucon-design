@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exécutions — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="app">
+            <!-- ================= Barre latérale ================= -->
+            <aside class="sidebar" :class="{ collapsed: ui.collapsed }">
+                <div class="sidebar-header">
+                    <a class="brand" href="dashboard.html">
+                        <img src="img/logo.svg" alt="Faucon" width="26" height="26">
+                        <span class="brand-name">Faucon</span>
+                    </a>
+                    <div style="position:relative" v-click-outside="() => ui.teamOpen = false">
+                        <button class="team-switch" @click="ui.teamOpen = !ui.teamOpen">
+                            <span class="avatar avatar-gradient">SF</span>
+                            <span class="team-switch-label">
+                                <b>{{ currentTeam }}</b>
+                                <small>Équipe · Plan Pro</small>
+                            </span>
+                            <ic name="chevrons-up-down" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.teamOpen" style="top:calc(100% + 6px); left:0; right:0;">
+                                <p class="dropdown-label">Équipes</p>
+                                <button class="dropdown-item" v-for="t in teams" :key="t.name" @click="currentTeam = t.name; ui.teamOpen = false">
+                                    <span class="avatar avatar-sm avatar-gradient">{{ t.initials }}</span>
+                                    <span style="flex:1">
+                                        <span style="display:block">{{ t.name }}</span>
+                                        <small class="text-xs text-muted">{{ t.role }}</small>
+                                    </span>
+                                    <ic v-if="t.name === currentTeam" name="check" :size="14" style="color:var(--brand-ink)"></ic>
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item"><ic name="plus" :size="15"></ic> Créer une équipe</button>
+                                <button class="dropdown-item"><ic name="user-plus" :size="15"></ic> Inviter un membre</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <nav class="nav">
+                    <p class="nav-label">Pilotage</p>
+                    <a class="nav-item" href="dashboard.html"><ic name="layout-dashboard" :size="16"></ic><span>Tableau de bord</span></a>
+                    <a class="nav-item active" href="executions.html"><ic name="activity" :size="16"></ic><span>Exécutions</span><span class="nav-badge">3</span></a>
+                    <p class="nav-label">Automatisation</p>
+                    <a class="nav-item" href="workflows.html"><ic name="workflow" :size="16"></ic><span>Workflows</span></a>
+                    <a class="nav-item" href="builder.html"><ic name="git-branch" :size="16"></ic><span>Éditeur</span></a>
+                    <a class="nav-item" href="templates.html"><ic name="layers" :size="16"></ic><span>Templates</span></a>
+                    <p class="nav-label">Configuration</p>
+                    <a class="nav-item" href="settings.html"><ic name="settings" :size="16"></ic><span>Paramètres</span></a>
+                    <a class="nav-item" href="settings.html#integrations"><ic name="key-round" :size="16"></ic><span>Intégrations</span></a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div style="position:relative" v-click-outside="() => ui.userOpen = false">
+                        <button class="user-card" @click="ui.userOpen = !ui.userOpen">
+                            <span class="avatar">AP</span>
+                            <span class="user-meta">
+                                <b>Aina Papy</b>
+                                <small>aina@studiofaucon.dev</small>
+                            </span>
+                            <ic name="ellipsis" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.userOpen" style="bottom:calc(100% + 8px); left:0; right:0;">
+                                <button class="dropdown-item"><ic name="user" :size="15"></ic> Mon profil</button>
+                                <button class="dropdown-item"><ic name="settings" :size="15"></ic> Paramètres</button>
+                                <button class="dropdown-item" @click="toggleTheme(); ui.userOpen = false">
+                                    <ic :name="isDark() ? 'sun' : 'moon'" :size="15"></ic>
+                                    {{ isDark() ? 'Thème clair' : 'Thème sombre' }}
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item danger"><ic name="log-out" :size="15"></ic> Se déconnecter</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ================= Zone principale ================= -->
+            <div class="main">
+                <header class="topbar">
+                    <button class="icon-btn" @click="toggleSidebar" aria-label="Replier le menu">
+                        <ic :name="ui.collapsed ? 'panel-left-open' : 'panel-left-close'" :size="17"></ic>
+                    </button>
+                    <nav class="crumbs">
+                        <span>{{ currentTeam }}</span>
+                        <ic name="chevron-right" :size="13"></ic>
+                        <b>Exécutions</b>
+                    </nav>
+                    <button class="topbar-search" @click="openSearch">
+                        <ic name="search" :size="15"></ic> Rechercher… <span class="kbd">⌘K</span>
+                    </button>
+                    <div class="topbar-actions">
+                        <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                            <ic :name="isDark() ? 'sun' : 'moon'" :size="17"></ic>
+                        </button>
+                        <div style="position:relative" v-click-outside="() => ui.notifOpen = false">
+                            <button class="icon-btn" @click="ui.notifOpen = !ui.notifOpen" aria-label="Notifications">
+                                <ic name="bell" :size="17"></ic>
+                                <span class="notif-dot" v-if="unreadCount"></span>
+                            </button>
+                            <transition name="pop">
+                                <div class="dropdown" v-if="ui.notifOpen" style="top:calc(100% + 8px); right:0; width:340px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 9px 4px;">
+                                        <p class="dropdown-label" style="padding:0">Notifications</p>
+                                        <button class="btn-link" style="font-size:12px; height:auto" @click="markAllRead">Tout marquer lu</button>
+                                    </div>
+                                    <div class="dropdown-sep"></div>
+                                    <button class="dropdown-item" v-for="n in notifications" :key="n.id" style="align-items:flex-start; gap:10px; white-space:normal;">
+                                        <ic :name="n.icon" :size="16" :style="{ color: n.color, marginTop: '2px', flex: 'none' }"></ic>
+                                        <span style="flex:1">
+                                            <span style="display:block; font-size:13px; line-height:1.4;">{{ n.text }}</span>
+                                            <small style="color:var(--muted-foreground); font-size:11px;">{{ n.time }}</small>
+                                        </span>
+                                        <span v-if="n.unread" style="width:7px; height:7px; border-radius:99px; background:var(--brand); margin-top:6px; flex:none;"></span>
+                                    </button>
+                                </div>
+                            </transition>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                    </div>
+                </header>
+
+                <main class="page">
+                    <!-- En-tête -->
+                    <div class="page-header anim-in d-1">
+                        <div>
+                            <h1 class="page-title">Exécutions</h1>
+                            <p class="page-desc">Historique complet — cliquez sur une ligne pour inspecter node par node.</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-outline" @click="refresh">
+                                <ic name="refresh-cw" :size="15" :class="{ spin: refreshing }"></ic> Actualiser
+                            </button>
+                            <button class="btn btn-outline" @click="$toast({title:'Export CSV programmé', type:'info'})">
+                                <ic name="download" :size="15"></ic> Exporter
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filtres -->
+                    <div class="toolbar anim-in d-2">
+                        <div class="input-wrap">
+                            <ic name="search" :size="15"></ic>
+                            <input class="input" v-model="query" placeholder="Rechercher par ID ou workflow…">
+                        </div>
+                        <select class="select" v-model="fWf" style="max-width:220px;">
+                            <option value="">Tous les workflows</option>
+                            <option v-for="w in workflowNames" :key="w">{{ w }}</option>
+                        </select>
+                        <select class="select" v-model="fStatus" style="max-width:150px;">
+                            <option value="">Tous les statuts</option>
+                            <option value="success">Succès</option>
+                            <option value="failed">Échec</option>
+                            <option value="running">En cours</option>
+                            <option value="queued">En file</option>
+                        </select>
+                        <select class="select" v-model="fPeriod" style="max-width:140px;">
+                            <option value="24h">24 dernières heures</option>
+                            <option value="7j">7 derniers jours</option>
+                            <option value="30j">30 derniers jours</option>
+                        </select>
+                    </div>
+
+                    <!-- Tableau -->
+                    <div class="card anim-in d-3" style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Exécution</th>
+                                    <th>Workflow</th>
+                                    <th>Déclencheur</th>
+                                    <th>Statut</th>
+                                    <th>Nodes</th>
+                                    <th>Durée</th>
+                                    <th>Date</th>
+                                    <th style="width:40px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="clickable" v-for="(e, i) in filtered" :key="e.id" @click="open(e)">
+                                    <td><span class="exec-id">{{ e.id }}</span></td>
+                                    <td style="font-weight:500;">{{ e.wf }}</td>
+                                    <td><span class="badge badge-outline">{{ e.trigger }}</span></td>
+                                    <td>
+                                        <span class="badge" :class="status(e.status).cls">
+                                            <spinner v-if="e.status === 'running'" class="spinner" style="width:11px; height:11px; border-width:1.5px;"></spinner>
+                                            <ic v-else :name="status(e.status).icon"></ic>
+                                            {{ status(e.status).label }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <div class="progress" style="width:64px; height:5px;">
+                                                <div class="progress-bar" :style="{ width: (e.done / e.nodes * 100) + '%' }"></div>
+                                            </div>
+                                            <span class="text-muted text-xs">{{ e.done }}/{{ e.nodes }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-muted">{{ e.ms ? $fmt.ms(e.ms) : '—' }}</td>
+                                    <td class="text-muted">{{ e.at }}</td>
+                                    <td><ic name="chevron-right" :size="15" style="color:var(--muted-foreground)"></ic></td>
+                                </tr>
+                                <tr v-if="!filtered.length">
+                                    <td colspan="8">
+                                        <div class="empty" style="border:0;">
+                                            <span class="empty-icon"><ic name="activity" :size="20"></ic></span>
+                                            <b>Aucune exécution pour ces filtres</b>
+                                            <p class="text-sm text-muted">Élargissez la période ou réinitialisez les filtres.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="text-xs text-muted anim-in d-4" style="margin-top:14px;">
+                        Rétention : 30 jours (plan Pro) · les secrets sont masqués automatiquement dans les entrées / sorties.
+                    </p>
+                </main>
+            </div>
+        </div>
+
+        <!-- ================= Sheet : détail d'exécution ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="current" @click="current = null"></div>
+        </transition>
+        <transition name="slide-right">
+            <div class="sheet" v-if="current" role="dialog" aria-label="Détail de l'exécution">
+                <div class="sheet-header">
+                    <div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="exec-id" style="font-size:13px;">{{ current.id }}</span>
+                            <span class="badge" :class="status(current.status).cls">
+                                <ic :name="status(current.status).icon"></ic> {{ status(current.status).label }}
+                            </span>
+                        </div>
+                        <div style="font-size:14.5px; font-weight:600; margin-top:4px;">{{ current.wf }}</div>
+                    </div>
+                    <button class="dialog-close" style="position:static;" @click="current = null" aria-label="Fermer">
+                        <ic name="x" :size="15"></ic>
+                    </button>
+                </div>
+
+                <div class="sheet-body">
+                    <!-- résumé -->
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+                        <div class="field"><span class="field-hint">Déclencheur</span><b class="text-sm">{{ current.trigger }}</b></div>
+                        <div class="field"><span class="field-hint">Démarrée</span><b class="text-sm">{{ current.at }}</b></div>
+                        <div class="field"><span class="field-hint">Durée totale</span><b class="text-sm">{{ current.ms ? $fmt.ms(current.ms) : 'en cours…' }}</b></div>
+                        <div class="field"><span class="field-hint">Tentative</span><b class="text-sm">{{ current.retry || 1 }} / 3</b></div>
+                    </div>
+
+                    <div class="alert alert-success" v-if="current.status === 'success'" style="margin-bottom:18px;">
+                        <ic name="circle-check" :size="16"></ic>
+                        <div><div class="alert-title">Terminée avec succès</div>Tous les nodes ont répondu dans les délais.</div>
+                    </div>
+                    <div class="alert alert-danger" v-if="current.status === 'failed'" style="margin-bottom:18px;">
+                        <ic name="circle-x" :size="16"></ic>
+                        <div><div class="alert-title">Échec — Noter le spam (HTTP)</div>HTTP 429 Too Many Requests depuis api.exemple.com. Retry programmé dans 2 min.</div>
+                    </div>
+                    <div class="alert alert-info" v-if="current.status === 'running'" style="margin-bottom:18px;">
+                        <ic name="loader-circle" :size="16"></ic>
+                        <div><div class="alert-title">Exécution en cours</div>Cette vue se met à jour automatiquement.</div>
+                    </div>
+
+                    <!-- timeline des nodes -->
+                    <p class="section-title">Parcours par node</p>
+                    <div class="timeline">
+                        <div class="step" v-for="(s, i) in current.detail.steps" :key="i">
+                            <span class="step-dot" :class="s.status">
+                                <spinner v-if="s.status === 'running'" class="spinner" style="width:12px; height:12px; border-width:2px;"></spinner>
+                                <ic v-else :name="s.status === 'success' ? 'check' : s.status === 'error' ? 'x' : 'clock'" :size="13"></ic>
+                            </span>
+                            <div>
+                                <div class="step-head" @click="openStep = openStep === i ? null : i">
+                                    <b>{{ s.name }} <span class="badge badge-outline" style="margin-left:6px;">{{ s.type }}</span></b>
+                                    <time>{{ s.ms ? $fmt.ms(s.ms) : '—' }}</time>
+                                </div>
+                                <div class="duration-bar" v-if="s.status !== 'queued'">
+                                    <i :class="s.status" :style="{ width: s.ms ? Math.max(6, s.ms / maxMs * 100) + '%' : '100%' }"></i>
+                                </div>
+                                <template v-if="openStep === i">
+                                    <div class="json-block" v-html="jsonHtml({ entrée: s.in })"></div>
+                                    <div class="json-block" v-html="jsonHtml({ sortie: s.out })"></div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- journal -->
+                    <p class="section-title" style="margin-top:8px;">Journal</p>
+                    <div class="json-block" style="white-space:normal;">
+                        <div v-for="(l, i) in current.detail.logs" :key="i" style="display:flex; gap:10px; padding:1.5px 0;">
+                            <span style="color:var(--muted-foreground); flex:none;">{{ l.t }}</span>
+                            <span :class="{ 'json-str': l.level === 'ok', 'json-num': l.level === 'err' }">{{ l.msg }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sheet-footer" v-if="current.status === 'failed'">
+                    <button class="btn btn-ghost" @click="current = null">Fermer</button>
+                    <button class="btn btn-primary" @click="retry">
+                        <ic name="rotate-ccw" :size="14"></ic> Relancer l'exécution
+                    </button>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        function jsonHtml(obj) {
+            const json = JSON.stringify(obj, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+            return json
+                .replace(/"([^"]+)":/g, '<span class="json-key">"$1"</span>:')
+                .replace(/: "([^"]*)"/g, ': <span class="json-str">"$1"</span>')
+                .replace(/: (-?\d+\.?\d*)/g, ': <span class="json-num">$1</span>')
+                .replace(/: (true|false)/g, ': <span class="json-bool">$1</span>');
+        }
+
+        /* Détails de démonstration */
+        const DETAIL_SUCCESS = {
+            steps: [
+                { name: 'Récupérer les flux', type: 'HTTP', status: 'success', ms: 640, in: { urls: 3, timeout: '10s' }, out: { items: 24, status: 200 } },
+                { name: 'Résumer les actualités', type: 'IA · Résumé', status: 'success', ms: 1820, in: { model: 'claude-haiku', items: 24 }, out: { summary: '3 mouvements majeurs chez les concurrents…', tokens: 1240 } },
+                { name: 'Détecter les menaces', type: 'IA · Classification', status: 'success', ms: 910, in: { model: 'gpt-4o-mini', labels: 'menace, opportunité, neutre' }, out: { label: 'opportunité', confidence: 0.87 } },
+                { name: 'Publier sur #direction', type: 'Message', status: 'success', ms: 420, in: { channel: '#direction' }, out: { delivered: true, id: 'msg_01J9XK' } },
+            ],
+            logs: [
+                { t: '0.00s', msg: 'Exécution démarrée (déclencheur : cron 0 11 * * *)', level: '' },
+                { t: '0.64s', msg: 'HTTP 200 — 24 éléments récupérés', level: 'ok' },
+                { t: '2.46s', msg: 'Résumé généré (1 240 tokens)', level: 'ok' },
+                { t: '4.12s', msg: 'Exécution terminée avec succès', level: 'ok' },
+            ],
+        };
+
+        const DETAIL_FAILED = {
+            steps: [
+                { name: 'Nouveau formulaire', type: 'Webhook', status: 'success', ms: 45, in: { form: 'contact', fields: 6 }, out: { accepted: true, id: 'frm_8842' } },
+                { name: 'Classifier le message', type: 'IA · Classification', status: 'success', ms: 388, in: { model: 'claude-haiku', text: 'Bonjour, devis pour…' }, out: { label: 'lead', confidence: 0.91 } },
+                { name: 'Est-ce un lead ?', type: 'Condition', status: 'success', ms: 12, in: { expression: 'label == "lead"' }, out: { branch: 'true' } },
+                { name: 'Noter le spam', type: 'HTTP', status: 'error', ms: 415, in: { method: 'POST', url: 'https://api.exemple.com/spam' }, out: { error: 'HTTP 429 Too Many Requests', retry: 'in 120s' } },
+                { name: 'Notifier l’équipe', type: 'Message', status: 'queued', ms: 0, in: {}, out: {} },
+            ],
+            logs: [
+                { t: '0.00s', msg: 'Exécution démarrée (déclencheur : webhook /forms)', level: '' },
+                { t: '0.39s', msg: 'Classification : label "lead" (91 %)', level: 'ok' },
+                { t: '0.86s', msg: 'HTTP 429 — quota rate-limit atteint', level: 'err' },
+                { t: '0.86s', msg: 'Retry programmé (tentative 2/3 dans 120 s)', level: '' },
+            ],
+        };
+
+        const DETAIL_RUNNING = {
+            steps: [
+                { name: 'Nouveau lead', type: 'Webhook', status: 'success', ms: 38, in: { email: 'client@exemple.com' }, out: { accepted: true } },
+                { name: 'Classifier le message', type: 'IA · Classification', status: 'success', ms: 486, in: { model: 'claude-haiku' }, out: { label: 'lead', confidence: 0.94 } },
+                { name: 'Est-ce un lead ?', type: 'Condition', status: 'success', ms: 9, in: { expression: 'label == "lead"' }, out: { branch: 'true' } },
+                { name: 'Rédiger la réponse', type: 'IA · Génération', status: 'running', ms: 0, in: { model: 'claude-sonnet', temperature: 0.4 }, out: {} },
+                { name: 'Envoyer la réponse', type: 'Email', status: 'queued', ms: 0, in: {}, out: {} },
+            ],
+            logs: [
+                { t: '0.00s', msg: 'Exécution démarrée (déclencheur : webhook /hooks/leads)', level: '' },
+                { t: '0.49s', msg: 'Classification : label "lead" (94 %)', level: 'ok' },
+                { t: '0.50s', msg: 'Génération en cours (claude-sonnet)…', level: '' },
+            ],
+        };
+
+        createApp({
+            mixins: [FauconUI.shellMixin],
+            data() {
+                return {
+                    query: '',
+                    fWf: '',
+                    fStatus: '',
+                    fPeriod: '7j',
+                    current: null,
+                    openStep: null,
+                    refreshing: false,
+                    runs: [
+                        { id: '#exec-042', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'running', at: 'Aujourd’hui · 12:04', ms: 0, nodes: 5, done: 3, detail: DETAIL_RUNNING },
+                        { id: '#exec-041', wf: 'Veille concurrentielle IA', trigger: 'Cron', status: 'success', at: 'Aujourd’hui · 11:47', ms: 4120, nodes: 4, done: 4, detail: DETAIL_SUCCESS },
+                        { id: '#exec-040', wf: 'Modération des formulaires', trigger: 'Webhook', status: 'failed', at: 'Aujourd’hui · 11:15', ms: 860, nodes: 5, done: 4, retry: 1, detail: DETAIL_FAILED },
+                        { id: '#exec-039', wf: 'Rapport hebdomadaire', trigger: 'Cron', status: 'success', at: 'Aujourd’hui · 10:00', ms: 6740, nodes: 6, done: 6, detail: DETAIL_SUCCESS },
+                        { id: '#exec-038', wf: 'Sync GitHub → canal #dev', trigger: 'Webhook', status: 'success', at: 'Aujourd’hui · 09:52', ms: 1930, nodes: 3, done: 3, detail: DETAIL_SUCCESS },
+                        { id: '#exec-037', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'queued', at: 'Aujourd’hui · 09:41', ms: 0, nodes: 5, done: 0, detail: DETAIL_RUNNING },
+                        { id: '#exec-036', wf: 'Veille concurrentielle IA', trigger: 'Cron', status: 'success', at: 'Hier · 11:47', ms: 3980, nodes: 4, done: 4, detail: DETAIL_SUCCESS },
+                        { id: '#exec-035', wf: 'Modération des formulaires', trigger: 'Webhook', status: 'success', at: 'Hier · 10:22', ms: 1120, nodes: 5, done: 5, detail: DETAIL_SUCCESS },
+                    ],
+                };
+            },
+            computed: {
+                workflowNames() {
+                    return [...new Set(this.runs.map((r) => r.wf))];
+                },
+                filtered() {
+                    const q = this.query.trim().toLowerCase();
+                    return this.runs.filter((r) => {
+                        if (this.fWf && r.wf !== this.fWf) return false;
+                        if (this.fStatus && r.status !== this.fStatus) return false;
+                        return !q || r.id.toLowerCase().includes(q) || r.wf.toLowerCase().includes(q);
+                    });
+                },
+                maxMs() {
+                    const steps = this.current ? this.current.detail.steps : [];
+                    return Math.max(1, ...steps.map((s) => s.ms || 0));
+                },
+            },
+            methods: {
+                status(s) {
+                    return {
+                        success: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' },
+                        failed: { cls: 'badge-danger', icon: 'circle-x', label: 'Échec' },
+                        running: { cls: 'badge-info', icon: 'loader-circle', label: 'En cours' },
+                        queued: { cls: 'badge-secondary', icon: 'clock', label: 'En file' },
+                    }[s];
+                },
+                open(run) {
+                    this.current = run;
+                    this.openStep = null;
+                },
+                retry() {
+                    this.$toast({ title: 'Relance programmée', description: 'Tentative 2/3 dans quelques secondes…', type: 'info' });
+                    this.current = null;
+                },
+                refresh() {
+                    this.refreshing = true;
+                    setTimeout(() => {
+                        this.refreshing = false;
+                        this.$toast({ title: 'À jour', description: 'Aucune nouvelle exécution depuis 12:04.', type: 'success' });
+                    }, 800);
+                },
+                jsonHtml,
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

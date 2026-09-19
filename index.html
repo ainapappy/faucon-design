@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faucon — Maquettes UI</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        /* applique le thème avant le premier rendu (anti-flash) */
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        .hub-wrap { max-width: 1080px; margin: 0 auto; padding: 40px 28px 80px; }
+        .hub-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 36px; }
+        .hub-identity { display: flex; align-items: center; gap: 14px; }
+        .hub-identity img { width: 44px; height: 44px; }
+        .hub-identity h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+        .hub-identity p { font-size: 13.5px; color: var(--muted-foreground); }
+        .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+        .hub-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+        .hub-card .hub-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--brand-soft); color: var(--brand-ink); }
+        .hub-card h3 { font-size: 14.5px; }
+        .hub-card p { font-size: 12.5px; color: var(--muted-foreground); line-height: 1.5; flex: 1; }
+        .hub-card .hub-go { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--brand-ink); }
+        .hub-card:hover .hub-go { text-decoration: underline; text-underline-offset: 3px; }
+        .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+        .swatch { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+        .swatch i { display: block; height: 54px; }
+        .swatch span { display: block; padding: 7px 10px; font-size: 11px; font-family: var(--font-mono); color: var(--muted-foreground); }
+        .swatch b { display: block; font-size: 12px; color: var(--foreground); font-family: var(--font-sans); }
+        .map-table td:first-child { font-family: var(--font-mono); font-size: 12px; }
+        section { margin-top: 44px; }
+        section > h2 { font-size: 17px; margin-bottom: 4px; }
+        section > p { font-size: 13px; color: var(--muted-foreground); margin-bottom: 16px; }
+        /* délais d'anim-in étendus (11 écrans) — prolonge le pas de 0,06 s de d-6…d-8 (base.css) */
+        .d-9 { animation-delay: 0.48s; }
+        .d-10 { animation-delay: 0.54s; }
+        .d-11 { animation-delay: 0.6s; }
+    </style>
+</head>
+<body>
+    <div class="hub-wrap">
+        <header class="hub-hero anim-in">
+            <div class="hub-identity">
+                <img src="img/logo.svg" alt="Faucon">
+                <div>
+                    <h1>Faucon — Maquettes UI</h1>
+                    <p>Design system &amp; écrans de la phase 3+ · shadcn-vue · Vue 3 (CDN) · Tailwind v4 à l'intégration</p>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="btn btn-outline" onclick="FauconUI.Theme.toggle()">
+                    <i data-lucide="moon" style="width:15px;height:15px;"></i> Thème clair / sombre
+                </button>
+                <span class="badge badge-brand">v1 · revue design</span>
+            </div>
+        </header>
+
+        <p class="anim-in d-1" style="max-width:72ch; font-size:14px; color:var(--muted-foreground);">
+            Maquettes autonomes (HTML + Vue CDN) qui préfigurent l'implémentation Inertia.
+            Chaque composant correspond à un composant <b>shadcn-vue</b> du kit (gratuits, MIT) — le tableau
+            de correspondance ci-dessous sert de spec à l'intégration. Ouvrez les écrans dans le navigateur ;
+            les interactions (⌘K, toasts, éditeur, 2FA) sont fonctionnelles dans la maquette.
+        </p>
+
+        <section>
+            <h2>Écrans</h2>
+            <p>Authentification (Fortify) · pilotage · automatisation · administration.</p>
+            <div class="hub-grid">
+                <a class="card card-hover hub-card anim-in d-1" href="login.html">
+                    <span class="hub-icon"><i data-lucide="fingerprint" style="width:17px;height:17px;"></i></span>
+                    <h3>Connexion</h3>
+                    <p>Email + mot de passe, 2FA TOTP, passkeys WebAuthn, états de démo (erreur, 2FA, succès).</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-2" href="register.html">
+                    <span class="hub-icon"><i data-lucide="user-plus" style="width:17px;height:17px;"></i></span>
+                    <h3>Inscription</h3>
+                    <p>Création de compte, jauge de force du mot de passe, conditions, écran de vérification e-mail.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-3" href="forgot-password.html">
+                    <span class="hub-icon"><i data-lucide="mail-question" style="width:17px;height:17px;"></i></span>
+                    <h3>Mot de passe oublié</h3>
+                    <p>Demande du lien de réinitialisation par e-mail, état « lien envoyé » simulé par chip de démo.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-4" href="reset-password.html">
+                    <span class="hub-icon"><i data-lucide="key-round" style="width:17px;height:17px;"></i></span>
+                    <h3>Réinitialisation du mot de passe</h3>
+                    <p>Nouveau mot de passe + confirmation (correspondance vérifiée en direct), e-mail figé, jeton signé.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-5" href="confirm-password.html">
+                    <span class="hub-icon"><i data-lucide="shield-check" style="width:17px;height:17px;"></i></span>
+                    <h3>Confirmation de mot de passe</h3>
+                    <p>Zone sécurisée : ressaisie du mot de passe avant de continuer, succès simulé par toast.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-6" href="dashboard.html">
+                    <span class="hub-icon"><i data-lucide="layout-dashboard" style="width:17px;height:17px;"></i></span>
+                    <h3>Tableau de bord</h3>
+                    <p>KPIs animés, graphe d'exécutions interactif, activité en direct, dernières exécutions.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-7" href="workflows.html">
+                    <span class="hub-icon"><i data-lucide="workflow" style="width:17px;height:17px;"></i></span>
+                    <h3>Workflows</h3>
+                    <p>Liste grille / tableau, filtres, activation, menus contextuels, création assistée.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-8" href="builder.html">
+                    <span class="hub-icon"><i data-lucide="git-branch" style="width:17px;height:17px;"></i></span>
+                    <h3>Éditeur (Builder)</h3>
+                    <p>Graphe interactif : glisser-déposer, connexions, inspecteur, pan/zoom, run simulé.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-9" href="executions.html">
+                    <span class="hub-icon"><i data-lucide="activity" style="width:17px;height:17px;"></i></span>
+                    <h3>Exécutions</h3>
+                    <p>Historique filtrable + panneau détail : timeline par node, durées, entrées / sorties JSON.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-10" href="templates.html">
+                    <span class="hub-icon"><i data-lucide="layers" style="width:17px;height:17px;"></i></span>
+                    <h3>Templates</h3>
+                    <p>Galerie avec aperçus de graphes, catégories, template vedette, duplication.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+                <a class="card card-hover hub-card anim-in d-11" href="settings.html">
+                    <span class="hub-icon"><i data-lucide="settings" style="width:17px;height:17px;"></i></span>
+                    <h3>Paramètres</h3>
+                    <p>Profil, apparence, sécurité (2FA, passkeys, sessions), équipe &amp; invitations, intégrations.</p>
+                    <span class="hub-go">Ouvrir <i data-lucide="arrow-right" style="width:13px;height:13px;"></i></span>
+                </a>
+            </div>
+        </section>
+
+        <section>
+            <h2>Fondations</h2>
+            <p>Socle shadcn neutre + identité ambre. Palette catégorielle validée CVD (ordre fixe).</p>
+            <div class="swatches anim-in d-1">
+                <div class="swatch"><i style="background:var(--brand)"></i><span><b>Brand</b>--brand · #f59e0b</span></div>
+                <div class="swatch"><i style="background:var(--cat-1)"></i><span><b>Déclencheurs</b>--cat-1</span></div>
+                <div class="swatch"><i style="background:var(--cat-2)"></i><span><b>Données</b>--cat-2</span></div>
+                <div class="swatch"><i style="background:var(--cat-3)"></i><span><b>IA</b>--cat-3</span></div>
+                <div class="swatch"><i style="background:var(--cat-4)"></i><span><b>Actions</b>--cat-4</span></div>
+                <div class="swatch"><i style="background:var(--cat-5)"></i><span><b>Logique</b>--cat-5</span></div>
+                <div class="swatch"><i style="background:var(--success)"></i><span><b>Succès</b>--success</span></div>
+                <div class="swatch"><i style="background:var(--destructive)"></i><span><b>Erreur</b>--destructive</span></div>
+                <div class="swatch"><i style="background:var(--warning)"></i><span><b>Alerte</b>--warning</span></div>
+                <div class="swatch"><i style="background:var(--info)"></i><span><b>Info</b>--info</span></div>
+            </div>
+            <div class="card anim-in d-2" style="margin-top:14px; padding:18px 20px; display:flex; gap:28px; align-items:baseline; flex-wrap:wrap;">
+                <div><div style="font-size:26px;font-weight:700;letter-spacing:-0.02em;">Instrument Sans</div><div class="text-xs text-muted">Titres &amp; interface · 400–700</div></div>
+                <div class="text-mono" style="font-size:13px;">JetBrains Mono — <span class="text-muted">webhook/leads · {{ ai.label }} · 0 9 * * 1</span></div>
+                <div class="text-xs text-muted" style="margin-left:auto;">Rayons 6/8/10/12/16 px · ombres xs→pop</div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Correspondance maquette → shadcn-vue</h2>
+            <p>À l'intégration, chaque classe de la maquette est remplacée par le composant du kit (déjà présent dans <span class="text-mono">resources/js/components/ui</span>).</p>
+            <div class="card" style="overflow-x:auto;">
+                <table class="table map-table">
+                    <thead><tr><th>Maquette (classe)</th><th>Composant shadcn-vue</th><th>Usage principal</th></tr></thead>
+                    <tbody>
+                        <tr><td>.btn .btn-primary / -outline / -ghost…</td><td>Button (variants)</td><td>Toutes les actions</td></tr>
+                        <tr><td>.card .card-header / -content / -footer</td><td>Card</td><td>KPIs, listes, formulaires</td></tr>
+                        <tr><td>.input .textarea .select .label .field</td><td>Input, Textarea, Select, Label</td><td>Formulaires</td></tr>
+                        <tr><td>.badge .badge-success / -danger…</td><td>Badge</td><td>Statuts d'exécution</td></tr>
+                        <tr><td>.dropdown .dropdown-item</td><td>DropdownMenu</td><td>Menus contextuels, équipes</td></tr>
+                        <tr><td>.dialog + .overlay</td><td>Dialog</td><td>Création, invitation, ⌘K</td></tr>
+                        <tr><td>.sheet</td><td>Sheet</td><td>Détail d'exécution</td></tr>
+                        <tr><td>.tabs .tab</td><td>Tabs</td><td>Inspecteur, plages de dates</td></tr>
+                        <tr><td>.table</td><td>Table</td><td>Exécutions, membres</td></tr>
+                        <tr><td>.switch .checkbox</td><td>Switch, Checkbox</td><td>Activation workflow, 2FA, 2FA TOTP</td></tr>
+                        <tr><td>.tooltip</td><td>Tooltip</td><td>Aides au survol</td></tr>
+                        <tr><td>.toast-viewport .toast</td><td>Sonner</td><td>Retours d'action</td></tr>
+                        <tr><td>.skeleton .spinner .progress</td><td>Skeleton, Spinner, Progress</td><td>Chargements, deferred props</td></tr>
+                        <tr><td>.sidebar .nav-item</td><td>Sidebar</td><td>Shell applicatif</td></tr>
+                        <tr><td>.command-* (⌘K)</td><td>Command</td><td>Palette de recherche</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer style="margin-top:52px; padding-top:18px; border-top:1px solid var(--border); display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12.5px; color:var(--muted-foreground);">
+            <img src="img/logo.svg" alt="" style="width:18px;height:18px;">
+            <span>Faucon · maquettes de design — usage interne au projet.</span>
+            <span style="margin-left:auto;">Totalement gratuit : shadcn-vue &amp; Tailwind (MIT) · lucide (ISC) · Vue (MIT) · Instrument Sans &amp; JetBrains Mono (OFL)</span>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

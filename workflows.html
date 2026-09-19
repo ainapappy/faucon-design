@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflows — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="app">
+            <!-- ================= Barre latérale ================= -->
+            <aside class="sidebar" :class="{ collapsed: ui.collapsed }">
+                <div class="sidebar-header">
+                    <a class="brand" href="dashboard.html">
+                        <img src="img/logo.svg" alt="Faucon" width="26" height="26">
+                        <span class="brand-name">Faucon</span>
+                    </a>
+                    <div style="position:relative" v-click-outside="() => ui.teamOpen = false">
+                        <button class="team-switch" @click="ui.teamOpen = !ui.teamOpen">
+                            <span class="avatar avatar-gradient">SF</span>
+                            <span class="team-switch-label">
+                                <b>{{ currentTeam }}</b>
+                                <small>Équipe · Plan Pro</small>
+                            </span>
+                            <ic name="chevrons-up-down" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.teamOpen" style="top:calc(100% + 6px); left:0; right:0;">
+                                <p class="dropdown-label">Équipes</p>
+                                <button class="dropdown-item" v-for="t in teams" :key="t.name" @click="currentTeam = t.name; ui.teamOpen = false">
+                                    <span class="avatar avatar-sm avatar-gradient">{{ t.initials }}</span>
+                                    <span style="flex:1">
+                                        <span style="display:block">{{ t.name }}</span>
+                                        <small class="text-xs text-muted">{{ t.role }}</small>
+                                    </span>
+                                    <ic v-if="t.name === currentTeam" name="check" :size="14" style="color:var(--brand-ink)"></ic>
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item"><ic name="plus" :size="15"></ic> Créer une équipe</button>
+                                <button class="dropdown-item"><ic name="user-plus" :size="15"></ic> Inviter un membre</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <nav class="nav">
+                    <p class="nav-label">Pilotage</p>
+                    <a class="nav-item" href="dashboard.html"><ic name="layout-dashboard" :size="16"></ic><span>Tableau de bord</span></a>
+                    <a class="nav-item" href="executions.html"><ic name="activity" :size="16"></ic><span>Exécutions</span><span class="nav-badge">3</span></a>
+                    <p class="nav-label">Automatisation</p>
+                    <a class="nav-item active" href="workflows.html"><ic name="workflow" :size="16"></ic><span>Workflows</span></a>
+                    <a class="nav-item" href="builder.html"><ic name="git-branch" :size="16"></ic><span>Éditeur</span></a>
+                    <a class="nav-item" href="templates.html"><ic name="layers" :size="16"></ic><span>Templates</span></a>
+                    <p class="nav-label">Configuration</p>
+                    <a class="nav-item" href="settings.html"><ic name="settings" :size="16"></ic><span>Paramètres</span></a>
+                    <a class="nav-item" href="settings.html#integrations"><ic name="key-round" :size="16"></ic><span>Intégrations</span></a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div style="position:relative" v-click-outside="() => ui.userOpen = false">
+                        <button class="user-card" @click="ui.userOpen = !ui.userOpen">
+                            <span class="avatar">AP</span>
+                            <span class="user-meta">
+                                <b>Aina Papy</b>
+                                <small>aina@studiofaucon.dev</small>
+                            </span>
+                            <ic name="ellipsis" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.userOpen" style="bottom:calc(100% + 8px); left:0; right:0;">
+                                <button class="dropdown-item"><ic name="user" :size="15"></ic> Mon profil</button>
+                                <button class="dropdown-item"><ic name="settings" :size="15"></ic> Paramètres</button>
+                                <button class="dropdown-item" @click="toggleTheme(); ui.userOpen = false">
+                                    <ic :name="isDark() ? 'sun' : 'moon'" :size="15"></ic>
+                                    {{ isDark() ? 'Thème clair' : 'Thème sombre' }}
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item danger"><ic name="log-out" :size="15"></ic> Se déconnecter</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ================= Zone principale ================= -->
+            <div class="main">
+                <header class="topbar">
+                    <button class="icon-btn" @click="toggleSidebar" aria-label="Replier le menu">
+                        <ic :name="ui.collapsed ? 'panel-left-open' : 'panel-left-close'" :size="17"></ic>
+                    </button>
+                    <nav class="crumbs">
+                        <span>{{ currentTeam }}</span>
+                        <ic name="chevron-right" :size="13"></ic>
+                        <b>Workflows</b>
+                    </nav>
+                    <button class="topbar-search" @click="openSearch">
+                        <ic name="search" :size="15"></ic> Rechercher… <span class="kbd">⌘K</span>
+                    </button>
+                    <div class="topbar-actions">
+                        <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                            <ic :name="isDark() ? 'sun' : 'moon'" :size="17"></ic>
+                        </button>
+                        <div style="position:relative" v-click-outside="() => ui.notifOpen = false">
+                            <button class="icon-btn" @click="ui.notifOpen = !ui.notifOpen" aria-label="Notifications">
+                                <ic name="bell" :size="17"></ic>
+                                <span class="notif-dot" v-if="unreadCount"></span>
+                            </button>
+                            <transition name="pop">
+                                <div class="dropdown" v-if="ui.notifOpen" style="top:calc(100% + 8px); right:0; width:340px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 9px 4px;">
+                                        <p class="dropdown-label" style="padding:0">Notifications</p>
+                                        <button class="btn-link" style="font-size:12px; height:auto" @click="markAllRead">Tout marquer lu</button>
+                                    </div>
+                                    <div class="dropdown-sep"></div>
+                                    <button class="dropdown-item" v-for="n in notifications" :key="n.id" style="align-items:flex-start; gap:10px; white-space:normal;">
+                                        <ic :name="n.icon" :size="16" :style="{ color: n.color, marginTop: '2px', flex: 'none' }"></ic>
+                                        <span style="flex:1">
+                                            <span style="display:block; font-size:13px; line-height:1.4;">{{ n.text }}</span>
+                                            <small style="color:var(--muted-foreground); font-size:11px;">{{ n.time }}</small>
+                                        </span>
+                                        <span v-if="n.unread" style="width:7px; height:7px; border-radius:99px; background:var(--brand); margin-top:6px; flex:none;"></span>
+                                    </button>
+                                </div>
+                            </transition>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                    </div>
+                </header>
+
+                <main class="page">
+                    <!-- En-tête -->
+                    <div class="page-header anim-in d-1">
+                        <div>
+                            <h1 class="page-title">Workflows</h1>
+                            <p class="page-desc">6 workflows dans {{ currentTeam }} — activez, éditez ou dupliquez vos automatisations.</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-outline" @click="$toast({title:'Import', description:'Glissez un fichier JSON exporté', type:'info'})">
+                                <ic name="upload" :size="15"></ic> Importer
+                            </button>
+                            <button class="btn btn-primary" @click="createOpen = true">
+                                <ic name="plus" :size="15"></ic> Nouveau workflow
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Barre d'outils -->
+                    <div class="toolbar anim-in d-2">
+                        <div class="input-wrap">
+                            <ic name="search" :size="15"></ic>
+                            <input class="input" v-model="query" placeholder="Rechercher un workflow…">
+                        </div>
+                        <div class="chip-row">
+                            <button class="chip" :class="{ active: chip === 'all' }" @click="chip = 'all'">
+                                Tous <span class="text-muted">{{ workflows.length }}</span>
+                            </button>
+                            <button class="chip" :class="{ active: chip === 'active' }" @click="chip = 'active'">
+                                Actifs <span class="text-muted">{{ workflows.filter(w => w.active).length }}</span>
+                            </button>
+                            <button class="chip" :class="{ active: chip === 'paused' }" @click="chip = 'paused'">
+                                En pause <span class="text-muted">{{ workflows.filter(w => !w.active).length }}</span>
+                            </button>
+                        </div>
+                        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+                            <select class="select" v-model="sort" style="width:150px;">
+                                <option value="recent">Plus récents</option>
+                                <option value="name">Nom (A→Z)</option>
+                                <option value="runs">Exécutions</option>
+                            </select>
+                            <div class="tabs">
+                                <button class="tab" :class="{ active: view === 'grid' }" @click="view = 'grid'" aria-label="Vue grille">
+                                    <ic name="layout-grid" :size="14"></ic>
+                                </button>
+                                <button class="tab" :class="{ active: view === 'list' }" @click="view = 'list'" aria-label="Vue liste">
+                                    <ic name="list" :size="14"></ic>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- État vide -->
+                    <div class="empty anim-in d-3" v-if="!filtered.length">
+                        <span class="empty-icon"><ic name="workflow" :size="22"></ic></span>
+                        <b>Aucun workflow trouvé</b>
+                        <p class="text-sm text-muted" style="max-width:38ch;">Essayez une autre recherche, ou créez
+                            votre premier workflow à partir d'un template.</p>
+                        <button class="btn btn-primary btn-sm" @click="createOpen = true"><ic name="plus" :size="14"></ic> Créer un workflow</button>
+                    </div>
+
+                    <!-- Vue grille -->
+                    <div class="wf-grid" v-if="view === 'grid' && filtered.length">
+                        <div class="card card-hover wf-card anim-in" v-for="(w, i) in filtered" :key="w.id" :class="'d-' + (i % 6 + 1)">
+                            <div class="wf-card-head">
+                                <span class="wf-trigger-icon" :style="{ background: 'color-mix(in srgb, ' + trigger(w.trigger).color + ' 13%, transparent)', color: trigger(w.trigger).color }">
+                                    <ic :name="trigger(w.trigger).icon" :size="17"></ic>
+                                </span>
+                                <div class="wf-title-row">
+                                    <h3 :title="w.name">{{ w.name }}</h3>
+                                    <span class="status-dot on" v-if="w.active" :title="w.active ? 'Actif' : 'En pause'"></span>
+                                </div>
+                                <div style="position:relative" v-click-outside="() => menuFor = null">
+                                    <button class="icon-btn" @click.stop="menuFor = menuFor === w.id ? null : w.id" aria-label="Actions">
+                                        <ic name="ellipsis" :size="16"></ic>
+                                    </button>
+                                    <transition name="pop">
+                                        <div class="dropdown" v-if="menuFor === w.id" style="top:calc(100% + 6px); right:0;">
+                                            <a class="dropdown-item" href="builder.html"><ic name="git-branch" :size="15"></ic> Ouvrir l'éditeur</a>
+                                            <button class="dropdown-item" @click="menuFor = null; run(w)"><ic name="play" :size="15"></ic> Exécuter maintenant</button>
+                                            <button class="dropdown-item" @click="menuFor = null; duplicate(w)"><ic name="copy" :size="15"></ic> Dupliquer</button>
+                                            <div class="dropdown-sep"></div>
+                                            <button class="dropdown-item danger" @click="menuFor = null; remove(w)"><ic name="trash-2" :size="15"></ic> Supprimer</button>
+                                        </div>
+                                    </transition>
+                                </div>
+                            </div>
+
+                            <p class="wf-desc clamp-2">{{ w.desc }}</p>
+
+                            <div class="wf-meta">
+                                <span><ic name="git-branch"></ic>{{ w.nodes }} nodes</span>
+                                <span><ic name="clock"></ic>{{ w.lastRun }}</span>
+                                <span><ic name="circle-check"></ic>{{ w.success }}</span>
+                            </div>
+
+                            <div class="wf-foot">
+                                <div class="wf-state">
+                                    <button class="switch" :class="{ on: w.active }" @click="toggle(w)"
+                                            role="switch" :aria-checked="w.active" aria-label="Activer le workflow"></button>
+                                    {{ w.active ? 'Actif' : 'En pause' }}
+                                </div>
+                                <a class="btn btn-ghost btn-sm" href="builder.html">Ouvrir <ic name="arrow-up-right" :size="14"></ic></a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vue liste -->
+                    <div class="card anim-in d-3" v-if="view === 'list' && filtered.length" style="overflow-x:auto;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Workflow</th>
+                                    <th>Déclencheur</th>
+                                    <th>Nodes</th>
+                                    <th>Dernière exécution</th>
+                                    <th>Succès</th>
+                                    <th>État</th>
+                                    <th style="width:44px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="w in filtered" :key="w.id" class="clickable">
+                                    <td @click="goBuilder(w)">
+                                        <div style="display:flex; align-items:center; gap:9px;">
+                                            <span class="wf-trigger-icon" style="width:28px; height:28px;"
+                                                  :style="{ background: 'color-mix(in srgb, ' + trigger(w.trigger).color + ' 13%, transparent)', color: trigger(w.trigger).color }">
+                                                <ic :name="trigger(w.trigger).icon" :size="13"></ic>
+                                            </span>
+                                            <div>
+                                                <b style="font-size:13.5px;">{{ w.name }}</b>
+                                                <div class="text-xs text-muted clamp-2" style="max-width:44ch;">{{ w.desc }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge badge-outline">{{ trigger(w.trigger).label }}</span></td>
+                                    <td class="text-muted">{{ w.nodes }}</td>
+                                    <td class="text-muted">{{ w.lastRun }}</td>
+                                    <td class="text-muted">{{ w.success }}</td>
+                                    <td>
+                                        <button class="switch" :class="{ on: w.active }" @click="toggle(w)"
+                                                role="switch" :aria-checked="w.active" aria-label="Activer le workflow"></button>
+                                    </td>
+                                    <td>
+                                        <a class="icon-btn" href="builder.html" aria-label="Éditer"><ic name="pencil" :size="15"></ic></a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- ================= Dialog : créer un workflow ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="createOpen" @click="createOpen = false"></div>
+        </transition>
+        <transition name="zoom">
+            <div class="dialog" v-if="createOpen" role="dialog" aria-label="Créer un workflow">
+                <button class="dialog-close" @click="createOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                <div class="dialog-title">Nouveau workflow</div>
+                <p class="dialog-description">Partez de zéro ou d'un template — vous pourrez tout éditer ensuite.</p>
+
+                <div style="display:grid; gap:15px; margin-top:20px;">
+                    <div class="field">
+                        <label class="label" for="wf-name">Nom <span class="req">*</span></label>
+                        <input id="wf-name" class="input" v-model="createForm.name" placeholder="Ex. Traitement des nouveaux leads">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="wf-desc">Description</label>
+                        <textarea id="wf-desc" class="textarea" v-model="createForm.desc" rows="3"
+                                  placeholder="À quoi sert ce workflow ?"></textarea>
+                    </div>
+                    <div class="field">
+                        <label class="label" for="wf-tpl">Partir d'un template</label>
+                        <select id="wf-tpl" class="select" v-model="createForm.template">
+                            <option value="">Griffe vide (déclencheur manuel)</option>
+                            <option>Support client IA</option>
+                            <option>Veille de marché</option>
+                            <option>Onboarding lead</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="dialog-footer">
+                    <button class="btn btn-ghost" @click="createOpen = false">Annuler</button>
+                    <button class="btn btn-primary" :disabled="processing || !createForm.name" @click="create">
+                        <spinner v-if="processing" class="spinner"></spinner>
+                        <ic v-else name="plus" :size="15"></ic>
+                        {{ processing ? 'Création…' : 'Créer le workflow' }}
+                    </button>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            mixins: [FauconUI.shellMixin],
+            data() {
+                return {
+                    query: '',
+                    chip: 'all',
+                    view: 'grid',
+                    sort: 'recent',
+                    menuFor: null,
+                    createOpen: false,
+                    processing: false,
+                    createForm: { name: '', desc: '', template: '' },
+                    workflows: [
+                        { id: 'wf-1', name: 'Traitement des nouveaux leads', desc: 'Webhook → classification IA → réponse e-mail automatisée au prospect.', trigger: 'webhook', active: true, nodes: 5, lastRun: 'il y a 4 min', success: '98,4 %', runs: 412 },
+                        { id: 'wf-2', name: 'Veille concurrentielle IA', desc: 'Résumé quotidien des actualités de la concurrence envoyé à l’équipe.', trigger: 'schedule', active: true, nodes: 4, lastRun: 'il y a 1 h', success: '99,1 %', runs: 286 },
+                        { id: 'wf-3', name: 'Rapport hebdomadaire', desc: 'Agrège les KPIs de la semaine et les publie sur le canal #direction.', trigger: 'schedule', active: true, nodes: 6, lastRun: 'lun. 10:00', success: '100 %', runs: 198 },
+                        { id: 'wf-4', name: 'Modération des formulaires', desc: 'Détecte le spam et les demandes prioritaires dans les formulaires du site.', trigger: 'webhook', active: false, nodes: 5, lastRun: 'hier', success: '97,2 %', runs: 154 },
+                        { id: 'wf-5', name: 'Sync GitHub → canal #dev', desc: 'Annonce les releases et les issues « bug » dans le canal de l’équipe.', trigger: 'webhook', active: true, nodes: 3, lastRun: 'il y a 26 min', success: '99,8 %', runs: 97 },
+                        { id: 'wf-6', name: 'Import leads événement', desc: 'Nettoie et déduplique les leads collectés lors des salons.', trigger: 'manual', active: false, nodes: 4, lastRun: '—', success: '—', runs: 12 },
+                    ],
+                };
+            },
+            computed: {
+                filtered() {
+                    let list = this.workflows.filter((w) => {
+                        if (this.chip === 'active' && !w.active) return false;
+                        if (this.chip === 'paused' && w.active) return false;
+                        const q = this.query.trim().toLowerCase();
+                        return !q || w.name.toLowerCase().includes(q) || w.desc.toLowerCase().includes(q);
+                    });
+                    if (this.sort === 'name') {
+                        list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+                    } else if (this.sort === 'runs') {
+                        list = [...list].sort((a, b) => b.runs - a.runs);
+                    }
+                    return list;
+                },
+            },
+            methods: {
+                trigger(t) {
+                    return {
+                        webhook: { icon: 'webhook', color: 'var(--cat-1)', label: 'Webhook' },
+                        schedule: { icon: 'calendar-clock', color: 'var(--cat-2)', label: 'Planifié' },
+                        manual: { icon: 'play', color: 'var(--cat-5)', label: 'Manuel' },
+                    }[t];
+                },
+                toggle(w) {
+                    w.active = !w.active;
+                    this.$toast({
+                        title: w.active ? 'Workflow activé' : 'Workflow mis en pause',
+                        description: w.name,
+                        type: w.active ? 'success' : 'info',
+                    });
+                },
+                run(w) {
+                    this.$toast({ title: 'Exécution lancée', description: w.name, type: 'success' });
+                },
+                duplicate(w) {
+                    const copy = { ...w, id: 'wf-' + Date.now(), name: w.name + ' (copie)', active: false, runs: 0, lastRun: '—', success: '—' };
+                    this.workflows.unshift(copy);
+                    this.$toast({ title: 'Workflow dupliqué', description: copy.name, type: 'success' });
+                },
+                remove(w) {
+                    this.workflows = this.workflows.filter((x) => x.id !== w.id);
+                    this.$toast({ title: 'Workflow supprimé', description: w.name, type: 'info' });
+                },
+                goBuilder(w) {
+                    window.location.href = 'builder.html';
+                },
+                create() {
+                    this.processing = true;
+                    setTimeout(() => {
+                        this.processing = false;
+                        this.createOpen = false;
+                        const fromTpl = !!this.createForm.template;
+                        this.workflows.unshift({
+                            id: 'wf-' + Date.now(),
+                            name: this.createForm.name,
+                            desc: this.createForm.desc || 'Nouveau workflow — décrivez-le dans l’éditeur.',
+                            trigger: fromTpl ? 'webhook' : 'manual',
+                            active: false,
+                            nodes: fromTpl ? 4 : 1,
+                            lastRun: '—',
+                            success: '—',
+                            runs: 0,
+                        });
+                        this.createForm = { name: '', desc: '', template: '' };
+                        this.$toast({ title: 'Workflow créé', description: 'Ouvrez l’éditeur pour construire le graphe.', type: 'success' });
+                    }, 700);
+                },
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

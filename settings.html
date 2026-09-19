@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paramètres — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="app">
+            <!-- ================= Barre latérale ================= -->
+            <aside class="sidebar" :class="{ collapsed: ui.collapsed }">
+                <div class="sidebar-header">
+                    <a class="brand" href="dashboard.html">
+                        <img src="img/logo.svg" alt="Faucon" width="26" height="26">
+                        <span class="brand-name">Faucon</span>
+                    </a>
+                    <div style="position:relative" v-click-outside="() => ui.teamOpen = false">
+                        <button class="team-switch" @click="ui.teamOpen = !ui.teamOpen">
+                            <span class="avatar avatar-gradient">SF</span>
+                            <span class="team-switch-label">
+                                <b>{{ currentTeam }}</b>
+                                <small>Équipe · Plan Pro</small>
+                            </span>
+                            <ic name="chevrons-up-down" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.teamOpen" style="top:calc(100% + 6px); left:0; right:0;">
+                                <p class="dropdown-label">Équipes</p>
+                                <button class="dropdown-item" v-for="t in teams" :key="t.name" @click="currentTeam = t.name; ui.teamOpen = false">
+                                    <span class="avatar avatar-sm avatar-gradient">{{ t.initials }}</span>
+                                    <span style="flex:1">
+                                        <span style="display:block">{{ t.name }}</span>
+                                        <small class="text-xs text-muted">{{ t.role }}</small>
+                                    </span>
+                                    <ic v-if="t.name === currentTeam" name="check" :size="14" style="color:var(--brand-ink)"></ic>
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item"><ic name="plus" :size="15"></ic> Créer une équipe</button>
+                                <button class="dropdown-item"><ic name="user-plus" :size="15"></ic> Inviter un membre</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <nav class="nav">
+                    <p class="nav-label">Pilotage</p>
+                    <a class="nav-item" href="dashboard.html"><ic name="layout-dashboard" :size="16"></ic><span>Tableau de bord</span></a>
+                    <a class="nav-item" href="executions.html"><ic name="activity" :size="16"></ic><span>Exécutions</span><span class="nav-badge">3</span></a>
+                    <p class="nav-label">Automatisation</p>
+                    <a class="nav-item" href="workflows.html"><ic name="workflow" :size="16"></ic><span>Workflows</span></a>
+                    <a class="nav-item" href="builder.html"><ic name="git-branch" :size="16"></ic><span>Éditeur</span></a>
+                    <a class="nav-item" href="templates.html"><ic name="layers" :size="16"></ic><span>Templates</span></a>
+                    <p class="nav-label">Configuration</p>
+                    <a class="nav-item active" href="settings.html"><ic name="settings" :size="16"></ic><span>Paramètres</span></a>
+                    <a class="nav-item" href="settings.html#integrations"><ic name="key-round" :size="16"></ic><span>Intégrations</span></a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div style="position:relative" v-click-outside="() => ui.userOpen = false">
+                        <button class="user-card" @click="ui.userOpen = !ui.userOpen">
+                            <span class="avatar">AP</span>
+                            <span class="user-meta">
+                                <b>Aina Papy</b>
+                                <small>aina@studiofaucon.dev</small>
+                            </span>
+                            <ic name="ellipsis" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.userOpen" style="bottom:calc(100% + 8px); left:0; right:0;">
+                                <button class="dropdown-item"><ic name="user" :size="15"></ic> Mon profil</button>
+                                <button class="dropdown-item"><ic name="settings" :size="15"></ic> Paramètres</button>
+                                <button class="dropdown-item" @click="toggleTheme(); ui.userOpen = false">
+                                    <ic :name="isDark() ? 'sun' : 'moon'" :size="15"></ic>
+                                    {{ isDark() ? 'Thème clair' : 'Thème sombre' }}
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item danger"><ic name="log-out" :size="15"></ic> Se déconnecter</button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ================= Zone principale ================= -->
+            <div class="main">
+                <header class="topbar">
+                    <button class="icon-btn" @click="toggleSidebar" aria-label="Replier le menu">
+                        <ic :name="ui.collapsed ? 'panel-left-open' : 'panel-left-close'" :size="17"></ic>
+                    </button>
+                    <nav class="crumbs">
+                        <span>{{ currentTeam }}</span>
+                        <ic name="chevron-right" :size="13"></ic>
+                        <b>Paramètres</b>
+                    </nav>
+                    <button class="topbar-search" @click="openSearch">
+                        <ic name="search" :size="15"></ic> Rechercher… <span class="kbd">⌘K</span>
+                    </button>
+                    <div class="topbar-actions">
+                        <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                            <ic :name="isDark() ? 'sun' : 'moon'" :size="17"></ic>
+                        </button>
+                        <div style="position:relative" v-click-outside="() => ui.notifOpen = false">
+                            <button class="icon-btn" @click="ui.notifOpen = !ui.notifOpen" aria-label="Notifications">
+                                <ic name="bell" :size="17"></ic>
+                                <span class="notif-dot" v-if="unreadCount"></span>
+                            </button>
+                            <transition name="pop">
+                                <div class="dropdown" v-if="ui.notifOpen" style="top:calc(100% + 8px); right:0; width:340px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 9px 4px;">
+                                        <p class="dropdown-label" style="padding:0">Notifications</p>
+                                        <button class="btn-link" style="font-size:12px; height:auto" @click="markAllRead">Tout marquer lu</button>
+                                    </div>
+                                    <div class="dropdown-sep"></div>
+                                    <button class="dropdown-item" v-for="n in notifications" :key="n.id" style="align-items:flex-start; gap:10px; white-space:normal;">
+                                        <ic :name="n.icon" :size="16" :style="{ color: n.color, marginTop: '2px', flex: 'none' }"></ic>
+                                        <span style="flex:1">
+                                            <span style="display:block; font-size:13px; line-height:1.4;">{{ n.text }}</span>
+                                            <small style="color:var(--muted-foreground); font-size:11px;">{{ n.time }}</small>
+                                        </span>
+                                        <span v-if="n.unread" style="width:7px; height:7px; border-radius:99px; background:var(--brand); margin-top:6px; flex:none;"></span>
+                                    </button>
+                                </div>
+                            </transition>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                    </div>
+                </header>
+
+                <main class="page">
+                    <div class="page-header anim-in d-1">
+                        <div>
+                            <h1 class="page-title">Paramètres</h1>
+                            <p class="page-desc">Compte, sécurité, équipe et intégrations de {{ currentTeam }}.</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-layout">
+                        <!-- Nav secondaire -->
+                        <nav class="settings-nav anim-in d-1">
+                            <a v-for="s in sections" :key="s.id" :href="'#' + s.id"
+                               :class="{ active: activeSection === s.id }" @click="activeSection = s.id">
+                                <ic :name="s.icon" :size="15"></ic> {{ s.label }}
+                            </a>
+                        </nav>
+
+                        <div>
+                            <!-- ================= Profil ================= -->
+                            <section class="settings-section" id="profil">
+                                <h2>Profil</h2>
+                                <p class="section-desc">Ces informations sont visibles par les membres de vos équipes.</p>
+
+                                <div class="card settings-card anim-in d-2">
+                                    <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
+                                        <div class="avatar-upload" @click="$toast({title:'Téléversement d’avatar', type:'info'})" role="button" aria-label="Changer l'avatar">
+                                            <span class="avatar avatar-gradient">AP</span>
+                                            <span class="avatar-upload-overlay"><ic name="pencil" :size="15"></ic></span>
+                                        </div>
+                                        <div>
+                                            <b class="text-sm">Photo de profil</b>
+                                            <p class="field-hint">PNG ou JPG, 512×512 recommandé.</p>
+                                        </div>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                                        <div class="field">
+                                            <label class="label" for="p-name">Nom complet</label>
+                                            <input id="p-name" class="input" v-model="profile.name">
+                                        </div>
+                                        <div class="field">
+                                            <label class="label" for="p-email">Adresse e-mail</label>
+                                            <div style="display:flex; gap:8px; align-items:center;">
+                                                <input id="p-email" class="input" value="aina@studiofaucon.dev" disabled style="background:var(--muted); opacity:.75;">
+                                                <span class="badge badge-success"><ic name="badge-check"></ic> Vérifié</span>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label" for="p-lang">Langue de l'interface</label>
+                                            <select id="p-lang" class="select" v-model="profile.lang">
+                                                <option>Français</option><option>English</option>
+                                            </select>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label" for="p-tz">Fuseau horaire</label>
+                                            <select id="p-tz" class="select" v-model="profile.tz">
+                                                <option>Europe/Paris (UTC+2)</option>
+                                                <option>UTC</option>
+                                                <option>America/New_York (UTC−5)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; justify-content:flex-end; margin-top:18px;">
+                                        <button class="btn btn-primary btn-sm" @click="saveProfile">
+                                            <ic name="check" :size="14"></ic> Enregistrer
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- ================= Apparence ================= -->
+                            <section class="settings-section" id="apparence">
+                                <h2>Apparence</h2>
+                                <p class="section-desc">Choisissez le thème de l'interface — préférence mémorisée sur cet appareil.</p>
+                                <div class="card settings-card anim-in d-2">
+                                    <div class="theme-cards">
+                                        <button class="theme-card" :class="{ active: activeTheme === 'light' }" @click="setTheme('light')">
+                                            <span class="theme-mini light"></span><span>Clair</span>
+                                        </button>
+                                        <button class="theme-card" :class="{ active: activeTheme === 'dark' }" @click="setTheme('dark')">
+                                            <span class="theme-mini dark"></span><span>Sombre</span>
+                                        </button>
+                                        <button class="theme-card" :class="{ active: activeTheme === 'system' }" @click="setTheme('system')">
+                                            <span class="theme-mini system"></span><span>Système</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- ================= Sécurité ================= -->
+                            <section class="settings-section" id="securite">
+                                <h2>Sécurité</h2>
+                                <p class="section-desc">Mot de passe, second facteur, clés d'accès et sessions actives.</p>
+
+                                <!-- Mot de passe -->
+                                <div class="card settings-card anim-in d-2">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Mot de passe</b>
+                                            <small>Dernière modification il y a 3 mois.</small>
+                                        </div>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px;">
+                                        <div class="field">
+                                            <label class="label">Actuel</label>
+                                            <input type="password" class="input" v-model="pwd.current" autocomplete="current-password">
+                                        </div>
+                                        <div class="field">
+                                            <label class="label">Nouveau</label>
+                                            <input type="password" class="input" v-model="pwd.next" autocomplete="new-password">
+                                            <div class="strength">
+                                                <i v-for="i in 4" :key="i" :class="{ filled: pwdScore >= i }"
+                                                   :style="pwdScore >= i ? '--strength-color:' + pwdColor : ''"></i>
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="label">Confirmation</label>
+                                            <input type="password" class="input" v-model="pwd.confirm" autocomplete="new-password">
+                                            <span class="field-error" v-if="pwd.confirm && pwd.confirm !== pwd.next">
+                                                <ic name="circle-alert" :size="13"></ic> Ne correspond pas
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+                                        <button class="btn btn-ink btn-sm" :disabled="!pwd.current || !pwd.next || pwd.next !== pwd.confirm" @click="savePwd">
+                                            Mettre à jour
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- 2FA -->
+                                <div class="card settings-card anim-in d-3">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Application d'authentification (TOTP)</b>
+                                            <small>Demande un code à 6 chiffres à chaque connexion. Compatible Fortify / authentificateurs standard.</small>
+                                        </div>
+                                        <button class="switch" :class="{ on: twofa.enabled }" @click="toggle2fa"
+                                                role="switch" :aria-checked="twofa.enabled" aria-label="Activer la 2FA"></button>
+                                    </div>
+
+                                    <transition name="fade">
+                                        <div v-if="twofa.enabled" style="display:flex; gap:22px; flex-wrap:wrap; padding-top:16px; border-top:1px solid var(--border);">
+                                            <div style="text-align:center;">
+                                                <div class="qr-frame" v-html="qrSvg"></div>
+                                                <p class="field-hint" style="margin-top:8px;">Scannez avec votre app</p>
+                                            </div>
+                                            <div style="flex:1; min-width:240px; display:grid; gap:14px; align-content:start;">
+                                                <div class="field">
+                                                    <label class="label">Clé secrète (si scan impossible)</label>
+                                                    <div class="cred-key">
+                                                        <span>{{ twofa.revealed ? twofa.secret : '•••• •••• •••• •••• •••• ••••' }}</span>
+                                                        <button @click="twofa.revealed = !twofa.revealed" :aria-label="twofa.revealed ? 'Masquer' : 'Révéler'">
+                                                            <ic :name="twofa.revealed ? 'eye-off' : 'eye'" :size="13"></ic>
+                                                        </button>
+                                                        <button @click="copy(twofa.secret)" aria-label="Copier"><ic name="copy" :size="13"></ic></button>
+                                                    </div>
+                                                </div>
+                                                <div class="field">
+                                                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                                                        <label class="label">Codes de récupération ({{ twofa.codes.length }})</label>
+                                                        <button class="btn btn-ghost btn-sm" @click="twofa.codesShown = !twofa.codesShown">
+                                                            <ic :name="twofa.codesShown ? 'eye-off' : 'eye'" :size="13"></ic>
+                                                            {{ twofa.codesShown ? 'Masquer' : 'Afficher' }}
+                                                        </button>
+                                                    </div>
+                                                    <div class="code-chips" :style="twofa.codesShown ? '' : 'filter:blur(5px); user-select:none;'">
+                                                        <span class="code-chip" v-for="c in twofa.codes" :key="c">{{ c }}</span>
+                                                    </div>
+                                                    <div style="display:flex; gap:8px;">
+                                                        <button class="btn btn-outline btn-sm" @click="copy(twofa.codes.join('\n'))">
+                                                            <ic name="copy" :size="13"></ic> Copier tout
+                                                        </button>
+                                                        <button class="btn btn-ghost btn-sm" @click="regenCodes">
+                                                            <ic name="refresh-cw" :size="13"></ic> Régénérer
+                                                        </button>
+                                                    </div>
+                                                    <p class="field-hint">Chaque code fonctionne une seule fois, en cas de perte de votre appareil.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </transition>
+                                </div>
+
+                                <!-- Passkeys -->
+                                <div class="card settings-card anim-in d-4">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Clés d'accès (passkeys)</b>
+                                            <small>Connexion par empreinte, Face ID ou clé matérielle — résistante au phishing.</small>
+                                        </div>
+                                        <button class="btn btn-outline btn-sm" @click="$toast({title:'WebAuthn', description:'Suivez les instructions de votre navigateur…', type:'info'})">
+                                            <ic name="plus" :size="14"></ic> Ajouter une clé
+                                        </button>
+                                    </div>
+                                    <div class="member-row" v-for="k in passkeys" :key="k.name">
+                                        <span class="kpi-icon c2"><ic :name="k.icon" :size="15"></ic></span>
+                                        <div class="member-info">
+                                            <b>{{ k.name }}</b>
+                                            <small>Ajoutée le {{ k.created }} · dernière utilisation {{ k.last }}</small>
+                                        </div>
+                                        <span class="badge badge-success" v-if="k.primary"><ic name="star"></ic> Principale</span>
+                                        <button class="btn btn-ghost btn-sm" style="color:var(--destructive);" @click="removePasskey(k)">
+                                            <ic name="trash-2" :size="14"></ic> Supprimer
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Sessions -->
+                                <div class="card settings-card anim-in d-5">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Sessions actives</b>
+                                            <small>Déconnectez les appareils que vous ne reconnaissez pas.</small>
+                                        </div>
+                                        <button class="btn btn-ghost btn-sm" style="color:var(--destructive);" @click="revokeAll">
+                                            Déconnecter tout
+                                        </button>
+                                    </div>
+                                    <div class="member-row" v-for="s in sessions" :key="s.device">
+                                        <span class="kpi-icon c3"><ic name="monitor-smartphone" :size="15"></ic></span>
+                                        <div class="member-info">
+                                            <b>{{ s.device }} <span class="badge badge-secondary" v-if="s.current" style="margin-left:4px;">cet appareil</span></b>
+                                            <small>{{ s.ip }} · actif {{ s.active }}</small>
+                                        </div>
+                                        <button class="btn btn-ghost btn-sm" v-if="!s.current" @click="revoke(s)">Révoquer</button>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- ================= Équipe ================= -->
+                            <section class="settings-section" id="equipe">
+                                <h2>Équipe</h2>
+                                <p class="section-desc">Membres de {{ currentTeam }}, rôles et invitations en attente.</p>
+
+                                <div class="card settings-card anim-in d-2">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Membres ({{ members.length }})</b>
+                                            <small>Les propriétaires et admins peuvent inviter de nouveaux membres.</small>
+                                        </div>
+                                        <button class="btn btn-primary btn-sm" @click="inviteOpen = true">
+                                            <ic name="user-plus" :size="14"></ic> Inviter
+                                        </button>
+                                    </div>
+                                    <div class="member-row" v-for="m in members" :key="m.email">
+                                        <span class="avatar" :class="{ 'avatar-gradient': m.owner }">{{ m.initials }}</span>
+                                        <div class="member-info">
+                                            <b>{{ m.name }} <span class="badge badge-brand" v-if="m.owner" style="margin-left:4px;">vous</span></b>
+                                            <small>{{ m.email }}</small>
+                                        </div>
+                                        <select class="select role-select" v-model="m.role" :disabled="m.owner" @change="roleChanged(m)">
+                                            <option>Propriétaire</option>
+                                            <option>Admin</option>
+                                            <option>Membre</option>
+                                        </select>
+                                        <button class="icon-btn" v-if="!m.owner" @click="removeMember(m)" aria-label="Retirer">
+                                            <ic name="trash-2" :size="14" style="color:var(--destructive)"></ic>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="card settings-card anim-in d-3">
+                                    <div class="settings-row" style="padding-top:0;">
+                                        <div class="settings-row-info">
+                                            <b>Invitations en attente ({{ pending.length }})</b>
+                                            <small>Les liens expirent après 7 jours.</small>
+                                        </div>
+                                    </div>
+                                    <div class="member-row" v-for="p in pending" :key="p.email">
+                                        <span class="kpi-icon c1"><ic name="mail" :size="15"></ic></span>
+                                        <div class="member-info">
+                                            <b>{{ p.email }}</b>
+                                            <small>Invité comme {{ p.role }} · envoyée {{ p.sent }}</small>
+                                        </div>
+                                        <button class="btn btn-ghost btn-sm" @click="resendInvite(p)"><ic name="send" :size="13"></ic> Renvoyer</button>
+                                        <button class="btn btn-ghost btn-sm" style="color:var(--destructive);" @click="revokeInvite(p)">Révoquer</button>
+                                    </div>
+                                    <p class="field-hint" v-if="!pending.length" style="padding:6px 0;">Aucune invitation en attente.</p>
+                                </div>
+
+                                <div class="alert alert-info anim-in d-4">
+                                    <ic name="shield-check" :size="15"></ic>
+                                    <div><b>Rôles</b> — Propriétaire : tout · Admin : workflows + membres · Membre : exécution et lecture.
+                                        L'autorisation est appliquée côté serveur par Policies.</div>
+                                </div>
+                            </section>
+
+                            <!-- ================= Intégrations ================= -->
+                            <section class="settings-section" id="integrations">
+                                <h2>Intégrations</h2>
+                                <p class="section-desc">Credentials chiffrés au repos — jamais exposés au frontend ni dans les logs.</p>
+
+                                <div class="cred-grid anim-in d-2">
+                                    <div class="card card-hover cred-card" v-for="c in creds" :key="c.name">
+                                        <div class="cred-head">
+                                            <span class="cred-logo" :style="{ background: c.bg, color: c.fg }">{{ c.letter }}</span>
+                                            <div style="flex:1; min-width:0;">
+                                                <b style="font-size:13.5px; display:block;">{{ c.name }}</b>
+                                                <span class="text-xs text-muted">{{ c.provider }}</span>
+                                            </div>
+                                            <span class="badge badge-success"><span class="dot"></span> Connecté</span>
+                                        </div>
+                                        <div class="cred-key" :class="{ blurred: !c.revealed }">
+                                            <span>{{ c.key }}</span>
+                                            <button @click="c.revealed = !c.revealed" :aria-label="c.revealed ? 'Masquer' : 'Révéler'">
+                                                <ic :name="c.revealed ? 'eye-off' : 'eye'" :size="13"></ic>
+                                            </button>
+                                            <button @click="copy(c.key)" aria-label="Copier"><ic name="copy" :size="13"></ic></button>
+                                        </div>
+                                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                                            <span class="text-xs text-muted">Utilisé par {{ c.usedBy }} workflow{{ c.usedBy > 1 ? 's' : '' }}</span>
+                                            <div style="position:relative" v-click-outside="() => credMenu = null">
+                                                <button class="icon-btn" style="width:28px; height:28px;" @click="credMenu = credMenu === c.name ? null : c.name" aria-label="Options">
+                                                    <ic name="ellipsis" :size="14"></ic>
+                                                </button>
+                                                <transition name="pop">
+                                                    <div class="dropdown" v-if="credMenu === c.name" style="top:calc(100% + 6px); right:0; min-width:170px;">
+                                                        <button class="dropdown-item" @click="credMenu = null"><ic name="pencil" :size="14"></ic> Renommer</button>
+                                                        <button class="dropdown-item" @click="credMenu = null"><ic name="history" :size="14"></ic> Rotation de clé</button>
+                                                        <div class="dropdown-sep"></div>
+                                                        <button class="dropdown-item danger" @click="credMenu = null; removeCred(c)"><ic name="trash-2" :size="14"></ic> Supprimer</button>
+                                                    </div>
+                                                </transition>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button class="cred-card card" style="border-style:dashed; align-items:center; justify-content:center; display:flex; gap:8px; color:var(--muted-foreground); background:transparent; cursor:pointer; min-height:150px;"
+                                            @click="addOpen = true">
+                                        <ic name="plus" :size="18"></ic> Ajouter un credential
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- ================= Dialog : invitation ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="inviteOpen" @click="inviteOpen = false"></div>
+        </transition>
+        <transition name="zoom">
+            <div class="dialog" v-if="inviteOpen" role="dialog" aria-label="Inviter des membres">
+                <button class="dialog-close" @click="inviteOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                <div class="dialog-title">Inviter des membres</div>
+                <p class="dialog-description">Une adresse par ligne — elles recevront un lien à usage unique.</p>
+                <div style="display:grid; gap:15px; margin-top:20px;">
+                    <div class="field">
+                        <label class="label" for="inv-emails">Adresses e-mail</label>
+                        <textarea id="inv-emails" class="textarea" v-model="inviteForm.emails" rows="3"
+                                  placeholder="collegue@exemple.com&#10;autre@exemple.com"></textarea>
+                    </div>
+                    <div class="field">
+                        <label class="label" for="inv-role">Rôle attribué</label>
+                        <select id="inv-role" class="select" v-model="inviteForm.role">
+                            <option>Membre</option><option>Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="btn btn-ghost" @click="inviteOpen = false">Annuler</button>
+                    <button class="btn btn-primary" :disabled="!inviteForm.emails" @click="sendInvites">
+                        <ic name="send" :size="14"></ic> Envoyer les invitations
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- ================= Dialog : credential ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="addOpen" @click="addOpen = false"></div>
+        </transition>
+        <transition name="zoom">
+            <div class="dialog" v-if="addOpen" role="dialog" aria-label="Ajouter un credential">
+                <button class="dialog-close" @click="addOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                <div class="dialog-title">Ajouter un credential</div>
+                <p class="dialog-description">La clé est chiffrée avant stockage et masquée dans les journaux.</p>
+                <div style="display:grid; gap:15px; margin-top:20px;">
+                    <div class="field">
+                        <label class="label" for="cred-name">Nom</label>
+                        <input id="cred-name" class="input" v-model="credForm.name" placeholder="OpenAI — production">
+                    </div>
+                    <div class="field">
+                        <label class="label" for="cred-provider">Fournisseur</label>
+                        <select id="cred-provider" class="select" v-model="credForm.provider">
+                            <option>OpenAI</option><option>Anthropic</option><option>Slack</option>
+                            <option>GitHub</option><option>SMTP / Email</option><option>Autre (HTTP)</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="label" for="cred-key">Clé / secret</label>
+                        <div class="input-wrap">
+                            <ic name="key-round" :size="15"></ic>
+                            <input id="cred-key" :type="credForm.show ? 'text' : 'password'" class="input" v-model="credForm.key"
+                                   placeholder="sk-…" autocomplete="off">
+                            <button type="button" class="input-trailing" @click="credForm.show = !credForm.show">
+                                <ic :name="credForm.show ? 'eye-off' : 'eye'" :size="15"></ic>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <ic name="lock" :size="15"></ic>
+                        <div>Chiffrement AES-256 au repos · secrets masqués automatiquement dans les logs d'exécution.</div>
+                    </div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="btn btn-ghost" @click="addOpen = false">Annuler</button>
+                    <button class="btn btn-primary" :disabled="!credForm.name || !credForm.key" @click="addCred">
+                        <ic name="lock" :size="14"></ic> Chiffrer et enregistrer
+                    </button>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        /* Faux QR code déterministe (aperçu visuel uniquement) */
+        function fakeQr(n) {
+            let seed = 42;
+            const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+            const cells = [];
+            const finder = (ox, oy) => {
+                for (let x = 0; x < 7; x++) {
+                    for (let y = 0; y < 7; y++) {
+                        const edge = x === 0 || x === 6 || y === 0 || y === 6;
+                        const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+                        if (edge || core) cells.push([ox + x, oy + y]);
+                    }
+                }
+            };
+            for (let x = 0; x < n; x++) {
+                for (let y = 0; y < n; y++) {
+                    const inFinder = (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8);
+                    if (!inFinder && rnd() < 0.44) cells.push([x, y]);
+                }
+            }
+            finder(0, 0); finder(n - 7, 0); finder(0, n - 7);
+            const s = 100 / n;
+            return `<svg viewBox="0 0 100 100" style="width:100%; height:100%;">${
+                cells.map(([x, y]) => `<rect x="${x * s}" y="${y * s}" width="${s * 0.92}" height="${s * 0.92}" rx="1.5" fill="#1c1917"/>`).join('')
+            }</svg>`;
+        }
+
+        function scorePwd(p) {
+            let s = 0;
+            if (p.length >= 8) s++;
+            if (p.length >= 12) s++;
+            if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
+            if (/\d/.test(p) && /[^A-Za-z0-9]/.test(p)) s++;
+            return s;
+        }
+
+        const genCode = () => {
+            const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            const part = (len) => Array.from({ length: len }, () => abc[Math.floor(Math.random() * abc.length)]).join('');
+            return `FAU-${part(4)}-${part(4)}`;
+        };
+
+        createApp({
+            mixins: [FauconUI.shellMixin],
+            data() {
+                return {
+                    sections: [
+                        { id: 'profil', label: 'Profil', icon: 'user' },
+                        { id: 'apparence', label: 'Apparence', icon: 'sun' },
+                        { id: 'securite', label: 'Sécurité', icon: 'shield-check' },
+                        { id: 'equipe', label: 'Équipe', icon: 'users' },
+                        { id: 'integrations', label: 'Intégrations', icon: 'key-round' },
+                    ],
+                    activeSection: 'profil',
+                    profile: { name: 'Aina Papy', lang: 'Français', tz: 'Europe/Paris (UTC+2)' },
+                    activeTheme: FauconUI.Theme.get(),
+                    pwd: { current: '', next: '', confirm: '' },
+                    twofa: {
+                        enabled: true,
+                        secret: 'JBSWY3DPEHPK3PXPFAUCON',
+                        revealed: false,
+                        codesShown: false,
+                        codes: Array.from({ length: 10 }, genCode),
+                    },
+                    qrSvg: fakeQr(21),
+                    passkeys: [
+                        { name: 'MacBook Pro · Touch ID', icon: 'laptop', created: '12 janv. 2026', last: 'aujourd’hui · 09:12', primary: true },
+                        { name: 'iPhone 15 · Face ID', icon: 'smartphone', created: '3 mars 2026', last: 'hier · 18:40', primary: false },
+                        { name: 'YubiKey 5C', icon: 'usb', created: '20 déc. 2025', last: 'il y a 12 j', primary: false },
+                    ],
+                    sessions: [
+                        { device: 'Chrome · Windows 11', ip: '92.184.•.• — Paris', active: 'maintenant', current: true },
+                        { device: 'Safari · iPhone', ip: '78.205.•.• — Lyon', active: 'il y a 2 h', current: false },
+                        { device: 'Firefox · Ubuntu', ip: '10.0.•.• — serveur CI', active: 'il y a 3 j', current: false },
+                    ],
+                    members: [
+                        { name: 'Aina Papy', email: 'aina@studiofaucon.dev', role: 'Propriétaire', initials: 'AP', owner: true },
+                        { name: 'Lina Rabe', email: 'lina@studiofaucon.dev', role: 'Admin', initials: 'LR' },
+                        { name: 'Marc Dubois', email: 'marc@studiofaucon.dev', role: 'Membre', initials: 'MD' },
+                        { name: 'Sofia Ngoy', email: 'sofia@studiofaucon.dev', role: 'Membre', initials: 'SN' },
+                    ],
+                    pending: [
+                        { email: 'julie@partenaire.io', role: 'Membre', sent: 'il y a 2 j' },
+                        { email: 'hello@agence.dev', role: 'Admin', sent: 'il y a 5 h' },
+                    ],
+                    inviteOpen: false,
+                    inviteForm: { emails: '', role: 'Membre' },
+                    creds: [
+                        { name: 'OpenAI — production', provider: 'OpenAI', letter: 'O', bg: 'color-mix(in srgb, var(--cat-4) 15%, transparent)', fg: 'var(--cat-4)', key: 'sk-proj-4f2A9x…', revealed: false, usedBy: 5 },
+                        { name: 'Anthropic — production', provider: 'Anthropic', letter: 'A', bg: 'color-mix(in srgb, var(--cat-1) 16%, transparent)', fg: 'var(--cat-1)', key: 'sk-ant-api03-8Qz…', revealed: false, usedBy: 3 },
+                        { name: 'Slack — Studio Faucon', provider: 'Slack', letter: 'S', bg: 'color-mix(in srgb, var(--cat-5) 15%, transparent)', fg: 'var(--cat-5)', key: 'xoxb-2271-…', revealed: false, usedBy: 4 },
+                        { name: 'GitHub — PAT fine-grained', provider: 'GitHub', letter: 'G', bg: 'color-mix(in srgb, var(--cat-2) 15%, transparent)', fg: 'var(--cat-2)', key: 'github_pat_9A2F…', revealed: false, usedBy: 2 },
+                    ],
+                    credMenu: null,
+                    addOpen: false,
+                    credForm: { name: '', provider: 'OpenAI', key: '', show: false },
+                };
+            },
+            computed: {
+                pwdScore() {
+                    return scorePwd(this.pwd.next);
+                },
+                pwdColor() {
+                    return ['var(--muted-foreground)', 'var(--destructive)', 'var(--warning)', 'var(--brand-ink)', 'var(--success)'][this.pwdScore];
+                },
+            },
+            methods: {
+                copy(text) {
+                    this.$toast({ title: 'Copié dans le presse-papiers', type: 'success', duration: 2200 });
+                },
+                saveProfile() {
+                    this.$toast({ title: 'Profil mis à jour', type: 'success' });
+                },
+                setTheme(mode) {
+                    this.activeTheme = mode;
+                    if (mode === 'system') {
+                        const sys = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                        FauconUI.Theme.set(sys);
+                        try { localStorage.removeItem('faucon-theme'); } catch (e) {}
+                    } else {
+                        FauconUI.Theme.set(mode);
+                    }
+                },
+                savePwd() {
+                    this.$toast({ title: 'Mot de passe mis à jour', description: 'Vos autres sessions restent actives.', type: 'success' });
+                    this.pwd = { current: '', next: '', confirm: '' };
+                },
+                toggle2fa() {
+                    this.twofa.enabled = !this.twofa.enabled;
+                    this.$toast({
+                        title: this.twofa.enabled ? '2FA activée' : '2FA désactivée',
+                        description: this.twofa.enabled ? 'Scannez le QR code avec votre application.' : 'Vos codes de récupération ont été invalidés.',
+                        type: this.twofa.enabled ? 'success' : 'info',
+                    });
+                },
+                regenCodes() {
+                    this.twofa.codes = Array.from({ length: 10 }, genCode);
+                    this.$toast({ title: 'Nouveaux codes générés', description: 'Les anciens codes sont invalides.', type: 'info' });
+                },
+                removePasskey(k) {
+                    this.passkeys = this.passkeys.filter((x) => x !== k);
+                    this.$toast({ title: 'Clé d’accès supprimée', description: k.name, type: 'info' });
+                },
+                revoke(s) {
+                    this.sessions = this.sessions.filter((x) => x !== s);
+                    this.$toast({ title: 'Session révoquée', description: s.device, type: 'info' });
+                },
+                revokeAll() {
+                    this.sessions = this.sessions.filter((s) => s.current);
+                    this.$toast({ title: 'Toutes les autres sessions ont été déconnectées', type: 'success' });
+                },
+                roleChanged(m) {
+                    this.$toast({ title: `${m.name} est maintenant ${m.role.toLowerCase()}`, type: 'success' });
+                },
+                removeMember(m) {
+                    this.members = this.members.filter((x) => x !== m);
+                    this.$toast({ title: 'Membre retiré', description: m.name, type: 'info' });
+                },
+                sendInvites() {
+                    const emails = this.inviteForm.emails.split('\n').map((s) => s.trim()).filter(Boolean);
+                    emails.forEach((e) => this.pending.push({ email: e, role: this.inviteForm.role, sent: 'à l’instant' }));
+                    this.inviteOpen = false;
+                    this.inviteForm = { emails: '', role: 'Membre' };
+                    this.$toast({ title: `${emails.length} invitation(s) envoyée(s)`, type: 'success' });
+                },
+                resendInvite(p) {
+                    p.sent = 'à l’instant';
+                    this.$toast({ title: 'Invitation renvoyée', description: p.email, type: 'success' });
+                },
+                revokeInvite(p) {
+                    this.pending = this.pending.filter((x) => x !== p);
+                    this.$toast({ title: 'Invitation révoquée', description: p.email, type: 'info' });
+                },
+                removeCred(c) {
+                    this.creds = this.creds.filter((x) => x !== c);
+                    this.$toast({ title: 'Credential supprimé', description: c.name, type: 'info' });
+                },
+                addCred() {
+                    this.creds.unshift({
+                        name: this.credForm.name,
+                        provider: this.credForm.provider,
+                        letter: this.credForm.provider.charAt(0).toUpperCase(),
+                        bg: 'color-mix(in srgb, var(--cat-2) 15%, transparent)',
+                        fg: 'var(--cat-2)',
+                        key: this.credForm.key.slice(0, 8) + '…',
+                        revealed: false,
+                        usedBy: 0,
+                    });
+                    this.addOpen = false;
+                    this.credForm = { name: '', provider: 'OpenAI', key: '', show: false };
+                    this.$toast({ title: 'Credential chiffré et enregistré', type: 'success' });
+                },
+            },
+            mounted() {
+                if (window.location.hash) {
+                    const id = window.location.hash.slice(1);
+                    if (this.sections.some((s) => s.id === id)) {
+                        this.activeSection = id;
+                        this.$nextTick(() => {
+                            const el = document.getElementById(id);
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        });
+                    }
+                }
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

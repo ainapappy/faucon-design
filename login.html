@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="auth-split">
+            <!-- ================= Panneau de marque ================= -->
+            <section class="auth-panel">
+                <a class="auth-brand" href="index.html">
+                    <img src="img/logo.svg" alt="Faucon" width="30" height="30">
+                    Faucon
+                </a>
+
+                <div>
+                    <svg class="auth-motif" viewBox="0 0 320 120" fill="none" aria-hidden="true">
+                        <path class="motif-edge" d="M62 42 C 80 42, 74 88, 92 88"></path>
+                        <path class="motif-edge" d="M148 88 C 166 88, 160 42, 178 42" style="animation-delay:.18s"></path>
+                        <path class="motif-edge" d="M234 42 C 250 42, 240 88, 256 88" style="animation-delay:.36s"></path>
+                        <path class="motif-edge" d="M234 42 C 250 42, 240 18, 256 18" style="animation-delay:.5s"></path>
+                        <rect class="motif-node" x="6" y="30" width="56" height="24" rx="7"></rect>
+                        <rect class="motif-node" x="92" y="76" width="56" height="24" rx="7"></rect>
+                        <rect class="motif-node" x="178" y="30" width="56" height="24" rx="7"></rect>
+                        <rect class="motif-node" x="256" y="76" width="56" height="24" rx="7"></rect>
+                        <rect class="motif-node" x="256" y="6" width="56" height="24" rx="7"></rect>
+                        <text class="motif-label" x="34" y="45" text-anchor="middle">Webhook</text>
+                        <text class="motif-label" x="120" y="91" text-anchor="middle">IA · classe</text>
+                        <text class="motif-label" x="206" y="45" text-anchor="middle">Condition</text>
+                        <text class="motif-label" x="284" y="91" text-anchor="middle">Email</text>
+                        <text class="motif-label" x="284" y="21" text-anchor="middle">HTTP</text>
+                        <text class="motif-tag" x="248" y="40" text-anchor="middle">true</text>
+                        <text class="motif-tag" x="248" y="56" text-anchor="middle">false</text>
+                    </svg>
+
+                    <h1 class="anim-in d-2">Vos automatisations IA,<br>orchestrées d'un seul regard.</h1>
+                    <p class="lead anim-in d-3">Construisez des workflows en graphe — déclencheurs, nodes IA,
+                        conditions et actions — exécutés, journalisés et supervisés par votre équipe.</p>
+
+                    <ul class="auth-points anim-in d-4">
+                        <li><ic name="git-branch" :size="16"></ic><span>Éditeur visuel — glissez des nodes, reliez, exécutez</span></li>
+                        <li><ic name="bot" :size="16"></ic><span>Nodes IA multi-providers avec sorties structurées validées</span></li>
+                        <li><ic name="shield-check" :size="16"></ic><span>Logs audités node par node, secrets chiffrés et masqués</span></li>
+                    </ul>
+                </div>
+
+                <p class="auth-quote anim-in d-5">« Le moteur tourne, vous restez aux commandes. »<br>— L'équipe Faucon</p>
+            </section>
+
+            <!-- ================= Formulaire ================= -->
+            <section class="auth-form-side">
+                <div class="auth-form" :class="{ shake: shake }">
+
+                    <!-- Étape 1 : identifiants -->
+                    <template v-if="step === 'credentials'">
+                        <div class="anim-in d-1">
+                            <h2>Content de vous revoir</h2>
+                            <p class="sub">Connectez-vous pour retrouver vos workflows.</p>
+                        </div>
+
+                        <div class="alert alert-danger" v-if="error" role="alert">
+                            <ic name="circle-alert" :size="16"></ic>
+                            <div>{{ error }}</div>
+                        </div>
+
+                        <form @submit.prevent="submitCredentials" style="display:grid; gap:16px;">
+                            <div class="field">
+                                <label class="label" for="email">Adresse e-mail</label>
+                                <input id="email" type="email" class="input" v-model="form.email"
+                                       placeholder="vous@exemple.com" autocomplete="email" required>
+                            </div>
+
+                            <div class="field">
+                                <div style="display:flex; align-items:center; justify-content:space-between;">
+                                    <label class="label" for="password">Mot de passe</label>
+                                    <a class="text-link" href="#" style="font-size:12.5px;">Mot de passe oublié ?</a>
+                                </div>
+                                <div class="input-wrap">
+                                    <ic name="lock" :size="15"></ic>
+                                    <input id="password" :type="showPassword ? 'text' : 'password'" class="input"
+                                           v-model="form.password" placeholder="••••••••" autocomplete="current-password" required>
+                                    <button type="button" class="input-trailing" @click="showPassword = !showPassword"
+                                            :aria-label="showPassword ? 'Masquer' : 'Afficher'">
+                                        <ic :name="showPassword ? 'eye-off' : 'eye'" :size="15"></ic>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <label style="display:flex; align-items:center; gap:9px; font-size:13.5px; cursor:pointer;">
+                                <input type="checkbox" class="checkbox" v-model="form.remember">
+                                Rester connecté 30 jours
+                            </label>
+
+                            <button class="btn btn-primary btn-lg" type="submit" :disabled="processing" style="width:100%;">
+                                <spinner v-if="processing" class="spinner"></spinner>
+                                <ic v-else name="arrow-right" :size="15"></ic>
+                                {{ processing ? 'Connexion…' : 'Se connecter' }}
+                            </button>
+                        </form>
+
+                        <div style="display:flex; align-items:center; gap:12px; color:var(--muted-foreground); font-size:12px;">
+                            <span class="separator" style="flex:1"></span> ou <span class="separator" style="flex:1"></span>
+                        </div>
+
+                        <button class="btn btn-outline btn-passkey" type="button" @click="passkey">
+                            <ic name="fingerprint" :size="16"></ic>
+                            Continuer avec une clé d'accès
+                        </button>
+
+                        <p class="auth-alt">Pas encore de compte ? <a href="register.html">Créez-en un gratuitement</a></p>
+
+                        <div class="demo-chips">
+                            <button class="demo-chip" @click="demo('error')">démo · identifiants invalides</button>
+                            <button class="demo-chip" @click="demo('twofa')">démo · défi 2FA</button>
+                            <button class="demo-chip" @click="demo('success')">démo · succès</button>
+                        </div>
+                    </template>
+
+                    <!-- Étape 2 : défi 2FA (TOTP) -->
+                    <template v-else>
+                        <div class="anim-in d-1">
+                            <button class="btn btn-ghost btn-sm" @click="backToCredentials" style="margin-left:-8px;">
+                                <ic name="arrow-left" :size="14"></ic> Retour
+                            </button>
+                            <div style="display:flex; align-items:center; gap:10px; margin-top:14px;">
+                                <span class="kpi-icon c2" style="width:38px; height:38px;">
+                                    <ic name="shield-check" :size="18"></ic>
+                                </span>
+                                <div>
+                                    <h2>Vérification en deux étapes</h2>
+                                    <p class="sub">Saisissez le code à 6 chiffres de votre application d'authentification.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-danger" v-if="error" role="alert">
+                            <ic name="circle-alert" :size="16"></ic>
+                            <div>{{ error }}</div>
+                        </div>
+
+                        <form @submit.prevent="submitOtp" style="display:grid; gap:18px;">
+                            <div class="otp-boxes" :class="{ shake: shake }">
+                                <input v-for="(_, i) in 6" :key="i" type="text" inputmode="numeric" maxlength="1"
+                                       v-model="otp[i]" @input="onOtpInput(i, $event)" @keydown.backspace="onOtpBack(i, $event)"
+                                       @paste="onOtpPaste($event)" :ref="el => otpRefs[i] = el" autocomplete="one-time-code">
+                            </div>
+
+                            <button class="btn btn-primary btn-lg" type="submit" :disabled="processing || otp.join('').length < 6" style="width:100%;">
+                                <spinner v-if="processing" class="spinner"></spinner>
+                                <ic v-else name="check" :size="15"></ic>
+                                {{ processing ? 'Vérification…' : 'Vérifier le code' }}
+                            </button>
+                        </form>
+
+                        <p class="auth-alt">
+                            Pas d'appareil sous la main ?
+                            <a class="text-link" href="#">Utiliser un code de récupération</a>
+                            <br>
+                            <span class="text-xs text-muted">Code de démo : <span class="text-mono">000000</span></span>
+                        </p>
+                    </template>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    step: 'credentials',
+                    form: { email: 'aina@studiofaucon.dev', password: '', remember: true },
+                    showPassword: false,
+                    processing: false,
+                    error: '',
+                    shake: false,
+                    otp: Array(6).fill(''),
+                    otpRefs: [],
+                };
+            },
+            methods: {
+                fail(msg) {
+                    this.error = msg;
+                    this.shake = true;
+                    setTimeout(() => { this.shake = false; }, 450);
+                },
+                submitCredentials() {
+                    this.error = '';
+                    this.processing = true;
+                    setTimeout(() => {
+                        this.processing = false;
+                        this.$toast({
+                            title: 'Bienvenue, Aina',
+                            description: 'Redirection vers le tableau de bord…',
+                            type: 'success',
+                        });
+                    }, 900);
+                },
+                passkey() {
+                    this.$toast({
+                        title: 'WebAuthn',
+                        description: 'Utilisez votre empreinte ou votre clé de sécurité…',
+                        type: 'info',
+                    });
+                },
+                demo(mode) {
+                    if (mode === 'error') {
+                        this.fail('Ces identifiants ne correspondent à aucun compte.');
+                    } else if (mode === 'twofa') {
+                        this.error = '';
+                        this.otp = Array(6).fill('');
+                        this.step = 'twofa';
+                        this.$nextTick(() => this.otpRefs[0] && this.otpRefs[0].focus());
+                    } else {
+                        this.$toast({ title: 'Connexion réussie', description: 'Bienvenue sur Faucon.', type: 'success' });
+                    }
+                },
+                backToCredentials() {
+                    this.step = 'credentials';
+                    this.error = '';
+                },
+                onOtpInput(i, e) {
+                    const v = e.target.value.replace(/\D/g, '');
+                    this.otp[i] = v.slice(-1);
+                    e.target.value = this.otp[i];
+                    if (this.otp[i] && i < 5) {
+                        this.otpRefs[i + 1] && this.otpRefs[i + 1].focus();
+                    }
+                },
+                onOtpBack(i, e) {
+                    if (!this.otp[i] && i > 0) {
+                        this.otpRefs[i - 1] && this.otpRefs[i - 1].focus();
+                    }
+                },
+                onOtpPaste(e) {
+                    const text = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+                    if (!text) {
+                        return;
+                    }
+                    e.preventDefault();
+                    text.split('').forEach((c, i) => { this.otp[i] = c; });
+                },
+                submitOtp() {
+                    this.processing = true;
+                    this.error = '';
+                    setTimeout(() => {
+                        this.processing = false;
+                        if (this.otp.join('') === '000000') {
+                            this.$toast({ title: 'Identité vérifiée', description: 'Redirection vers le tableau de bord…', type: 'success' });
+                        } else {
+                            this.fail('Code incorrect. Réessayez ou utilisez un code de récupération.');
+                        }
+                    }, 800);
+                },
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>

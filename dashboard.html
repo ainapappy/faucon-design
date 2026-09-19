@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de bord — Faucon</title>
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="app">
+            <!-- ================= Barre latérale ================= -->
+            <aside class="sidebar" :class="{ collapsed: ui.collapsed }">
+                <div class="sidebar-header">
+                    <a class="brand" href="dashboard.html">
+                        <img src="img/logo.svg" alt="Faucon" width="26" height="26">
+                        <span class="brand-name">Faucon</span>
+                    </a>
+                    <div style="position:relative" v-click-outside="() => ui.teamOpen = false">
+                        <button class="team-switch" @click="ui.teamOpen = !ui.teamOpen">
+                            <span class="avatar avatar-gradient">SF</span>
+                            <span class="team-switch-label">
+                                <b>{{ currentTeam }}</b>
+                                <small>Équipe · Plan Pro</small>
+                            </span>
+                            <ic name="chevrons-up-down" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.teamOpen" style="top:calc(100% + 6px); left:0; right:0;">
+                                <p class="dropdown-label">Équipes</p>
+                                <button class="dropdown-item" v-for="t in teams" :key="t.name" @click="currentTeam = t.name; ui.teamOpen = false">
+                                    <span class="avatar avatar-sm avatar-gradient">{{ t.initials }}</span>
+                                    <span style="flex:1">
+                                        <span style="display:block">{{ t.name }}</span>
+                                        <small class="text-xs text-muted">{{ t.role }}</small>
+                                    </span>
+                                    <ic v-if="t.name === currentTeam" name="check" :size="14" style="color:var(--brand-ink)"></ic>
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item" @click="ui.teamOpen = false; $toast({title:'Création d’équipe', description:'Formulaire à venir', type:'info'})">
+                                    <ic name="plus" :size="15"></ic> Créer une équipe
+                                </button>
+                                <button class="dropdown-item" @click="ui.teamOpen = false; $toast({title:'Invitation', description:'Lien copié dans le presse-papiers', type:'info'})">
+                                    <ic name="user-plus" :size="15"></ic> Inviter un membre
+                                </button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+
+                <nav class="nav">
+                    <p class="nav-label">Pilotage</p>
+                    <a class="nav-item active" href="dashboard.html"><ic name="layout-dashboard" :size="16"></ic><span>Tableau de bord</span></a>
+                    <a class="nav-item" href="executions.html"><ic name="activity" :size="16"></ic><span>Exécutions</span><span class="nav-badge">3</span></a>
+                    <p class="nav-label">Automatisation</p>
+                    <a class="nav-item" href="workflows.html"><ic name="workflow" :size="16"></ic><span>Workflows</span></a>
+                    <a class="nav-item" href="builder.html"><ic name="git-branch" :size="16"></ic><span>Éditeur</span></a>
+                    <a class="nav-item" href="templates.html"><ic name="layers" :size="16"></ic><span>Templates</span></a>
+                    <p class="nav-label">Configuration</p>
+                    <a class="nav-item" href="settings.html"><ic name="settings" :size="16"></ic><span>Paramètres</span></a>
+                    <a class="nav-item" href="settings.html#integrations"><ic name="key-round" :size="16"></ic><span>Intégrations</span></a>
+                </nav>
+
+                <div class="sidebar-footer">
+                    <div style="position:relative" v-click-outside="() => ui.userOpen = false">
+                        <button class="user-card" @click="ui.userOpen = !ui.userOpen">
+                            <span class="avatar">AP</span>
+                            <span class="user-meta">
+                                <b>Aina Papy</b>
+                                <small>aina@studiofaucon.dev</small>
+                            </span>
+                            <ic name="ellipsis" :size="14" style="color:var(--muted-foreground)"></ic>
+                        </button>
+                        <transition name="pop">
+                            <div class="dropdown" v-if="ui.userOpen" style="bottom:calc(100% + 8px); left:0; right:0;">
+                                <button class="dropdown-item" @click="ui.userOpen = false"><ic name="user" :size="15"></ic> Mon profil</button>
+                                <button class="dropdown-item" @click="ui.userOpen = false"><ic name="settings" :size="15"></ic> Paramètres</button>
+                                <button class="dropdown-item" @click="toggleTheme(); ui.userOpen = false">
+                                    <ic :name="isDark() ? 'sun' : 'moon'" :size="15"></ic>
+                                    {{ isDark() ? 'Thème clair' : 'Thème sombre' }}
+                                </button>
+                                <div class="dropdown-sep"></div>
+                                <button class="dropdown-item danger" @click="ui.userOpen = false; $toast({title:'Déconnexion', type:'info'})">
+                                    <ic name="log-out" :size="15"></ic> Se déconnecter
+                                </button>
+                            </div>
+                        </transition>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ================= Zone principale ================= -->
+            <div class="main">
+                <header class="topbar">
+                    <button class="icon-btn" @click="toggleSidebar" aria-label="Replier le menu">
+                        <ic :name="ui.collapsed ? 'panel-left-open' : 'panel-left-close'" :size="17"></ic>
+                    </button>
+                    <nav class="crumbs">
+                        <span>{{ currentTeam }}</span>
+                        <ic name="chevron-right" :size="13"></ic>
+                        <b>Tableau de bord</b>
+                    </nav>
+                    <button class="topbar-search" @click="openSearch">
+                        <ic name="search" :size="15"></ic> Rechercher… <span class="kbd">⌘K</span>
+                    </button>
+                    <div class="topbar-actions">
+                        <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
+                            <ic :name="isDark() ? 'sun' : 'moon'" :size="17"></ic>
+                        </button>
+                        <div style="position:relative" v-click-outside="() => ui.notifOpen = false">
+                            <button class="icon-btn" @click="ui.notifOpen = !ui.notifOpen" aria-label="Notifications">
+                                <ic name="bell" :size="17"></ic>
+                                <span class="notif-dot" v-if="unreadCount"></span>
+                            </button>
+                            <transition name="pop">
+                                <div class="dropdown" v-if="ui.notifOpen" style="top:calc(100% + 8px); right:0; width:340px;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 9px 4px;">
+                                        <p class="dropdown-label" style="padding:0">Notifications</p>
+                                        <button class="btn-link" style="font-size:12px; height:auto" @click="markAllRead">Tout marquer lu</button>
+                                    </div>
+                                    <div class="dropdown-sep"></div>
+                                    <button class="dropdown-item" v-for="n in notifications" :key="n.id"
+                                            style="align-items:flex-start; gap:10px; white-space:normal;">
+                                        <ic :name="n.icon" :size="16" :style="{ color: n.color, marginTop: '2px', flex: 'none' }"></ic>
+                                        <span style="flex:1">
+                                            <span style="display:block; font-size:13px; line-height:1.4;">{{ n.text }}</span>
+                                            <small style="color:var(--muted-foreground); font-size:11px;">{{ n.time }}</small>
+                                        </span>
+                                        <span v-if="n.unread" style="width:7px; height:7px; border-radius:99px; background:var(--brand); margin-top:6px; flex:none;"></span>
+                                    </button>
+                                </div>
+                            </transition>
+                        </div>
+                        <a class="btn btn-primary btn-sm" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                    </div>
+                </header>
+
+                <main class="page">
+                    <!-- En-tête -->
+                    <div class="page-header anim-in d-1">
+                        <div>
+                            <h1 class="page-title">Bonjour, Aina</h1>
+                            <p class="page-desc">Voici l'activité de vos workflows — mardi 19 septembre.</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-outline" @click="$toast({title:'Export CSV programmé', type:'info'})">
+                                <ic name="download" :size="15"></ic> Exporter
+                            </button>
+                            <a class="btn btn-primary" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
+                        </div>
+                    </div>
+
+                    <!-- KPIs -->
+                    <div class="kpi-grid">
+                        <div class="card card-hover kpi-card anim-in d-1">
+                            <div class="kpi-top">
+                                <span class="kpi-label">Exécutions · 24 h</span>
+                                <span class="kpi-icon c1"><ic name="activity" :size="15"></ic></span>
+                            </div>
+                            <div class="kpi-value">{{ fmtNumber(display.exec) }}</div>
+                            <div class="kpi-bottom">
+                                <span class="kpi-trend up"><ic name="trending-up"></ic>+12,4 %</span>
+                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
+                                    <path :d="$linePath(sparks.exec, 90, 28, { pad: 3 })" fill="none"
+                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="card card-hover kpi-card anim-in d-2">
+                            <div class="kpi-top">
+                                <span class="kpi-label">Taux de succès</span>
+                                <span class="kpi-icon c4"><ic name="circle-check" :size="15"></ic></span>
+                            </div>
+                            <div class="kpi-value">{{ display.success.toLocaleString('fr-FR', { minimumFractionDigits: 1 }) }} %</div>
+                            <div class="kpi-bottom">
+                                <span class="kpi-trend up"><ic name="trending-up"></ic>+0,3 pt</span>
+                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
+                                    <path :d="$linePath(sparks.success, 90, 28, { pad: 3 })" fill="none"
+                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="card card-hover kpi-card anim-in d-3">
+                            <div class="kpi-top">
+                                <span class="kpi-label">Workflows actifs</span>
+                                <span class="kpi-icon c2"><ic name="workflow" :size="15"></ic></span>
+                            </div>
+                            <div class="kpi-value">{{ display.wf }}</div>
+                            <div class="kpi-bottom">
+                                <span class="kpi-trend up"><ic name="trending-up"></ic>+3 cette semaine</span>
+                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
+                                    <path :d="$linePath(sparks.wf, 90, 28, { pad: 3 })" fill="none"
+                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="card card-hover kpi-card anim-in d-4">
+                            <div class="kpi-top">
+                                <span class="kpi-label">Tokens IA · mois</span>
+                                <span class="kpi-icon c3"><ic name="bot" :size="15"></ic></span>
+                            </div>
+                            <div class="kpi-value">{{ display.tokens.toLocaleString('fr-FR', { minimumFractionDigits: 1 }) }} M</div>
+                            <div class="kpi-bottom">
+                                <span class="kpi-trend down"><ic name="trending-up"></ic>68 % du quota</span>
+                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
+                                    <path :d="$linePath(sparks.tokens, 90, 28, { pad: 3 })" fill="none"
+                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Graphe + activité -->
+                    <div class="dash-grid">
+                        <div class="card anim-in d-3">
+                            <div class="card-content" style="padding-bottom:8px;">
+                                <div class="chart-head">
+                                    <div>
+                                        <div class="card-title">Exécutions</div>
+                                        <div class="card-description">Volume quotidien et tendance</div>
+                                    </div>
+                                    <div class="tabs">
+                                        <button class="tab" v-for="r in ['7 j', '14 j', '30 j']" :key="r"
+                                                :class="{ active: range === r }" @click="range = r">{{ r }}</button>
+                                    </div>
+                                </div>
+
+                                <div class="chart-wrap" @mouseleave="hover = null">
+                                    <transition name="fade" mode="out-in">
+                                        <svg class="chart-svg" :key="range" viewBox="0 0 660 240" ref="chart"
+                                             @mousemove="onChartMove" role="img" aria-label="Exécutions par jour">
+                                            <!-- grille -->
+                                            <g v-for="tick in chart.yTicks" :key="'g' + tick.v">
+                                                <line class="chart-grid-line" :x1="chart.L" :x2="660 - chart.R" :y1="tick.y" :y2="tick.y"></line>
+                                                <text class="chart-axis-label" :x="chart.L - 7" :y="tick.y + 3.5" text-anchor="end">{{ tick.label }}</text>
+                                            </g>
+                                            <!-- aire + ligne -->
+                                            <path class="chart-area" :d="chart.area"></path>
+                                            <path class="chart-line" :d="chart.line"></path>
+                                            <!-- labels X -->
+                                            <text v-for="(lb, i) in chart.labels" :key="'x' + i" class="chart-axis-label"
+                                                  v-show="lb.show" :x="lb.x" y="232" text-anchor="middle">{{ lb.text }}</text>
+                                            <!-- survol -->
+                                            <g v-if="hover !== null">
+                                                <line class="chart-crosshair" :x1="chart.pts[hover].x" :x2="chart.pts[hover].x" :y1="chart.T" :y2="240 - chart.B"></line>
+                                                <circle class="chart-dot" :cx="chart.pts[hover].x" :cy="chart.pts[hover].y" r="4.5"></circle>
+                                            </g>
+                                        </svg>
+                                    </transition>
+                                    <div class="chart-tip" v-if="hover !== null"
+                                         :style="{ left: (chart.pts[hover].x / 660 * chartWidth) + 'px', top: (chart.pts[hover].y / 240 * chartHeight) + 'px' }">
+                                        <div class="text-muted">{{ chart.pts[hover].date }}</div>
+                                        <b>{{ fmtNumber(chart.pts[hover].v) }} exécutions</b>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; flex-direction:column; gap:14px;">
+                            <div class="card anim-in d-4">
+                                <div class="card-content" style="padding-bottom:6px;">
+                                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                                        <span class="live-dot"></span>
+                                        <div class="card-title" style="font-size:14px;">Activité en direct</div>
+                                    </div>
+                                    <div class="feed-list">
+                                        <div class="feed-item" v-for="item in feed" :key="item.id">
+                                            <span class="feed-icon" :style="{ background: item.bg, color: item.color }">
+                                                <ic :name="item.icon" :size="14"></ic>
+                                            </span>
+                                            <div class="feed-body">
+                                                <p>{{ item.text }}</p>
+                                                <time>à l'instant</time>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card anim-in d-5">
+                                <div class="card-content" style="padding-bottom:12px;">
+                                    <div class="card-title" style="font-size:14px; margin-bottom:10px;">Workflows en tête · 7 j</div>
+                                    <div style="display:grid; gap:11px;">
+                                        <div v-for="w in topWorkflows" :key="w.name">
+                                            <div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:4px;">
+                                                <span style="font-weight:500;">{{ w.name }}</span>
+                                                <span class="text-muted">{{ fmtNumber(w.runs) }} runs</span>
+                                            </div>
+                                            <div class="progress" style="height:5px;">
+                                                <div class="progress-bar" :style="{ width: (w.runs / topMax * 100) + '%' }"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dernières exécutions -->
+                    <div class="card anim-in d-5">
+                        <div class="card-content">
+                            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                                <div class="card-title">Dernières exécutions</div>
+                                <a class="btn btn-ghost btn-sm" href="executions.html">Tout voir <ic name="arrow-right" :size="14"></ic></a>
+                            </div>
+                            <div style="overflow-x:auto;">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Exécution</th>
+                                            <th>Workflow</th>
+                                            <th>Déclencheur</th>
+                                            <th>Statut</th>
+                                            <th>Durée</th>
+                                            <th>Heure</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="clickable" v-for="e in recent" :key="e.id" @click="goExec(e.id)">
+                                            <td><span class="exec-id">{{ e.id }}</span></td>
+                                            <td style="font-weight:500;">{{ e.wf }}</td>
+                                            <td><span class="badge badge-outline">{{ e.trigger }}</span></td>
+                                            <td><span class="badge" :class="status(e.status).cls">
+                                                <ic v-if="e.status !== 'running'" :name="status(e.status).icon"></ic>
+                                                <spinner v-else class="spinner" style="width:11px; height:11px; border-width:1.5px;"></spinner>
+                                                {{ status(e.status).label }}</span></td>
+                                            <td class="text-muted">{{ $fmt.ms(e.ms) }}</td>
+                                            <td class="text-muted">{{ e.at }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- ================= Palette ⌘K ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="ui.searchOpen" @click="ui.searchOpen = false"></div>
+        </transition>
+        <transition name="zoom">
+            <div class="dialog" v-if="ui.searchOpen" style="max-width:560px; padding:0; top:18%;" role="dialog" aria-label="Recherche">
+                <div style="display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border);">
+                    <ic name="search" :size="16" style="color:var(--muted-foreground)"></ic>
+                    <input class="command-input" v-model="ui.searchQuery" placeholder="Rechercher une page, un workflow, une action…" autofocus>
+                    <span class="kbd">ESC</span>
+                </div>
+                <div class="command-list" style="padding:4px 6px 8px;">
+                    <p class="text-muted text-sm" v-if="!searchResults.length" style="padding:18px; text-align:center;">Aucun résultat.</p>
+                    <template v-for="(c, i) in searchResults" :key="c.label">
+                        <p class="command-group" v-if="i === 0 || searchResults[i - 1].group !== c.group">{{ c.group }}</p>
+                        <div class="command-item" :class="{ selected: i === ui.searchIndex }"
+                             @click="ui.searchIndex = i; searchGo()" @mouseenter="ui.searchIndex = i">
+                            <ic :name="c.icon" :size="15"></ic>
+                            <span style="flex:1">{{ c.label }}</span>
+                            <ic v-if="i === ui.searchIndex" name="corner-down-left" :size="13" style="color:var(--muted-foreground)"></ic>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </transition>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        const days = (n) => Array.from({ length: n }, (_, i) => {
+            const d = new Date(Date.now() - (n - 1 - i) * 86400000);
+            return `${d.getDate()}/${d.getMonth() + 1}`;
+        });
+
+        createApp({
+            mixins: [FauconUI.shellMixin],
+            data() {
+                return {
+                    display: { exec: 0, success: 0, wf: 0, tokens: 0 },
+                    sparks: {
+                        exec: [820, 940, 880, 1120, 1260, 1080, 1340, 1290, 1420, 1180, 1520, 1610],
+                        success: [97.1, 97.8, 97.4, 98.0, 98.2, 97.9, 98.4, 98.1, 98.3, 98.0, 98.2, 98.2],
+                        wf: [18, 18, 19, 19, 20, 21, 21, 22, 22, 22, 23, 23],
+                        tokens: [2.4, 2.7, 2.6, 3.0, 3.3, 3.1, 3.6, 3.8, 3.7, 4.0, 4.1, 4.2],
+                    },
+                    range: '14 j',
+                    datasets: {
+                        '7 j': [1180, 1520, 1610, 1480, 1684, 1540, 1712],
+                        '14 j': [820, 940, 880, 1120, 1260, 1080, 1340, 1290, 1420, 1180, 1520, 1610, 1480, 1684],
+                        '30 j': [610, 590, 640, 700, 660, 720, 780, 740, 810, 860, 820, 880, 940, 900, 980, 1020, 970, 1040, 1100, 1060, 1120, 1080, 1180, 1240, 1190, 1280, 1340, 1420, 1610, 1684],
+                    },
+                    hover: null,
+                    chartWidth: 660,
+                    chartHeight: 240,
+                    feedId: 0,
+                    feedPool: [
+                        { icon: 'webhook', bg: 'color-mix(in srgb, var(--cat-1) 14%, transparent)', color: 'var(--cat-1)', text: 'Webhook « /hooks/leads » a déclenché Traitement des nouveaux leads' },
+                        { icon: 'bot', bg: 'color-mix(in srgb, var(--cat-3) 13%, transparent)', color: 'var(--cat-3)', text: 'Classification terminée — label « lead » (94 %)' },
+                        { icon: 'mail', bg: 'color-mix(in srgb, var(--cat-4) 13%, transparent)', color: 'var(--cat-4)', text: 'Email de réponse envoyé à client@exemple.com' },
+                        { icon: 'globe', bg: 'color-mix(in srgb, var(--cat-2) 13%, transparent)', color: 'var(--cat-2)', text: 'Requête HTTP vers api.exemple.com — 200 OK · 214 ms' },
+                        { icon: 'circle-check', bg: 'var(--success-soft)', color: 'var(--success)', text: 'Rapport hebdomadaire exécuté avec succès' },
+                        { icon: 'git-branch', bg: 'color-mix(in srgb, var(--cat-5) 13%, transparent)', color: 'var(--cat-5)', text: 'Condition évaluée : branche true empruntée' },
+                    ],
+                    feed: [],
+                    topWorkflows: [
+                        { name: 'Traitement des nouveaux leads', runs: 412 },
+                        { name: 'Veille concurrentielle IA', runs: 286 },
+                        { name: 'Rapport hebdomadaire', runs: 198 },
+                        { name: 'Modération des formulaires', runs: 154 },
+                        { name: 'Sync GitHub → canal #dev', runs: 97 },
+                    ],
+                    recent: [
+                        { id: '#exec-042', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'running', ms: 1240, at: '12:04' },
+                        { id: '#exec-041', wf: 'Veille concurrentielle IA', trigger: 'Cron', status: 'success', ms: 4120, at: '11:47' },
+                        { id: '#exec-040', wf: 'Modération des formulaires', trigger: 'Webhook', status: 'failed', ms: 860, at: '11:15' },
+                        { id: '#exec-039', wf: 'Rapport hebdomadaire', trigger: 'Cron', status: 'success', ms: 6740, at: '10:00' },
+                        { id: '#exec-038', wf: 'Sync GitHub → canal #dev', trigger: 'Webhook', status: 'success', ms: 1930, at: '09:52' },
+                        { id: '#exec-037', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'queued', ms: 0, at: '09:41' },
+                    ],
+                };
+            },
+            computed: {
+                topMax() {
+                    return Math.max(...this.topWorkflows.map((w) => w.runs));
+                },
+                chart() {
+                    const vals = this.datasets[this.range];
+                    const W = 660; const H = 240; const L = 40; const R = 12; const T = 14; const B = 28;
+                    const max = Math.max(...vals) * 1.08;
+                    const px = (i) => L + (i * (W - L - R)) / (vals.length - 1);
+                    const py = (v) => T + (1 - v / max) * (H - T - B);
+                    const line = vals.map((v, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)} ${py(v).toFixed(1)}`).join(' ');
+                    const area = `${line} L${px(vals.length - 1).toFixed(1)} ${H - B} L${L} ${H - B} Z`;
+                    const yTicks = [0.25, 0.5, 0.75, 1].map((f) => {
+                        const v = Math.round(max * f);
+                        return { v, y: py(v), label: FauconUI.fmt.compact(v) };
+                    });
+                    const labels = days(vals.length).map((d, i) => {
+                        const every = Math.ceil(vals.length / 7);
+                        return { text: d, x: px(i), show: i % every === 0 || i === vals.length - 1 };
+                    });
+                    const pts = vals.map((v, i) => ({ x: px(i), y: py(v), v, date: days(vals.length)[i] }));
+                    return { line, area, yTicks, labels, pts, L, R, T, B };
+                },
+            },
+            methods: {
+                onChartMove(e) {
+                    const rect = this.$refs.chart.getBoundingClientRect();
+                    this.chartWidth = rect.width;
+                    this.chartHeight = rect.height;
+                    const vx = (e.clientX - rect.left) * (660 / rect.width);
+                    const step = (660 - this.chart.L - this.chart.R) / (this.chart.pts.length - 1);
+                    const i = Math.round((vx - this.chart.L) / step);
+                    this.hover = Math.min(this.chart.pts.length - 1, Math.max(0, i));
+                },
+                status(s) {
+                    return {
+                        success: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' },
+                        failed: { cls: 'badge-danger', icon: 'circle-x', label: 'Échec' },
+                        running: { cls: 'badge-info', icon: 'loader-circle', label: 'En cours' },
+                        queued: { cls: 'badge-secondary', icon: 'clock', label: 'En file' },
+                        cancelled: { cls: 'badge-outline', icon: 'minus', label: 'Annulée' },
+                    }[s];
+                },
+                goExec(id) {
+                    this.$toast({ title: `Ouverture de ${id}`, description: 'Voir executions.html pour l’écran complet', type: 'info', duration: 2600 });
+                },
+                pushFeed() {
+                    const item = this.feedPool[this.feedId % this.feedPool.length];
+                    this.feedId++;
+                    this.feed.unshift({ id: this.feedId, ...item });
+                    if (this.feed.length > 4) {
+                        this.feed.pop();
+                    }
+                },
+            },
+            mounted() {
+                this.$countUp(this.display, 'exec', 1284);
+                this.$countUp(this.display, 'success', 98.2, { decimals: 1 });
+                this.$countUp(this.display, 'wf', 23);
+                this.$countUp(this.display, 'tokens', 4.2, { decimals: 1 });
+                this.pushFeed();
+                this.pushFeed();
+                this.pushFeed();
+                this._feedTimer = setInterval(this.pushFeed, 4200);
+            },
+            beforeUnmount() {
+                clearInterval(this._feedTimer);
+            },
+        })
+            .use(FauconUI.plugin)
+            .mount('#app');
+    </script>
+</body>
+</html>
