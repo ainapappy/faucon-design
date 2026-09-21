@@ -152,7 +152,15 @@
                         </div>
                     </div>
 
-                    <!-- Catégories -->
+                    <!-- Filtres : origine -->
+                    <div class="chip-row anim-in d-2" style="margin-bottom:10px;">
+                        <button class="chip" v-for="o in originChips" :key="o.key"
+                                :class="{ active: origin === o.key }" @click="origin = o.key">
+                            {{ o.label }} <span class="text-muted">{{ o.count }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Filtres : catégorie (compteurs dérivés des templates) -->
                     <div class="chip-row anim-in d-2" style="margin-bottom:20px;">
                         <button class="chip" v-for="c in categories" :key="c.key"
                                 :class="{ active: cat === c.key }" @click="cat = c.key">
@@ -160,49 +168,83 @@
                         </button>
                     </div>
 
-                    <!-- Grille -->
-                    <div class="tpl-grid">
-                        <div class="card card-hover tpl-card tpl-featured anim-in d-2" v-if="cat === 'all'">
-                            <div class="tpl-preview" style="min-height:170px;">
-                                <div style="width:100%;" v-html="tplSvg(templates[0].graph)"></div>
-                            </div>
-                            <div class="tpl-body" style="padding:18px 20px 20px;">
-                                <div style="display:flex; align-items:center; gap:8px;">
-                                    <h3 style="font-size:16px;">{{ templates[0].name }}</h3>
-                                    <span class="badge badge-brand"><ic name="star"></ic> Populaire</span>
-                                </div>
-                                <p style="font-size:13.5px; max-width:58ch;">{{ templates[0].desc }}</p>
-                                <div class="tpl-foot">
-                                    <div class="tpl-meta" style="font-size:12.5px;">
-                                        <span><ic name="git-branch"></ic>{{ templates[0].nodes }} nodes</span>
-                                        <span><ic name="download"></ic>{{ templates[0].uses }} utilisations</span>
-                                        <span><ic name="star"></ic>{{ templates[0].rating }} / 5</span>
-                                    </div>
-                                    <button class="btn btn-primary" @click="use(templates[0])">
-                                        <ic name="copy" :size="14"></ic> Utiliser ce template
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card card-hover tpl-card anim-in" v-for="(t, i) in filtered" :key="t.name" :class="'d-' + (i % 6 + 1)">
-                            <div class="tpl-preview" v-html="tplSvg(t.graph)"></div>
-                            <div class="tpl-body">
-                                <h3>{{ t.name }}</h3>
-                                <p class="clamp-2">{{ t.desc }}</p>
-                                <div class="tpl-foot">
-                                    <div class="tpl-meta">
-                                        <span><ic name="git-branch"></ic>{{ t.nodes }}</span>
-                                        <span><ic name="download"></ic>{{ t.uses }}</span>
-                                        <span class="badge badge-secondary" style="font-size:10.5px;">{{ t.cat }}</span>
-                                    </div>
-                                    <button class="btn btn-outline btn-sm" @click="use(t)">
-                                        Utiliser <ic name="arrow-up-right" :size="13"></ic>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Galerie vide -->
+                    <div class="empty anim-in d-3" v-if="!templates.length">
+                        <span class="empty-icon"><ic name="layers" :size="22"></ic></span>
+                        <b>Aucun template disponible</b>
+                        <p class="text-sm text-muted" style="max-width:38ch;">Les templates système arrivent avec l'installation — revenez plus tard.</p>
                     </div>
+
+                    <!-- Aucun résultat de filtre (catégorie active uniquement ; sinon CTA de section) -->
+                    <div class="empty anim-in d-3" v-else-if="cat !== 'all' && !showFeatured && !sections.some(s => s.items.length)">
+                        <span class="empty-icon"><ic name="search" :size="22"></ic></span>
+                        <b>Aucun template dans cette catégorie</b>
+                        <p class="text-sm text-muted" style="max-width:38ch;">Essayez une autre catégorie, ou revenez à « Tous ».</p>
+                    </div>
+
+                    <!-- Sections empilées : Système, puis Mon équipe -->
+                    <template v-else>
+                        <section v-for="section in sections" :key="section.key" style="margin-bottom:26px;">
+                            <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:12px;">
+                                <h2 style="font-size:15px; font-weight:600;">{{ section.label }}</h2>
+                                <span class="text-xs text-muted">{{ section.items.length + (section.key === 'system' && showFeatured ? 1 : 0) }}</span>
+                            </div>
+
+                            <div class="tpl-grid" v-if="section.items.length || (section.key === 'system' && showFeatured)">
+                                <!-- Carte vedette : premier template système (origine + catégorie « Tous ») -->
+                                <div class="card card-hover tpl-card tpl-featured anim-in d-2"
+                                     v-if="section.key === 'system' && showFeatured">
+                                    <div class="tpl-preview" style="min-height:170px;">
+                                        <div style="width:100%;" v-html="tplSvg(featured.graph)"></div>
+                                    </div>
+                                    <div class="tpl-body" style="padding:18px 20px 20px;">
+                                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                            <h3 style="font-size:16px;">{{ featured.name }}</h3>
+                                            <span class="badge badge-brand"><ic name="star"></ic> Recommandé</span>
+                                            <span class="badge badge-secondary" style="font-size:10.5px;">Système</span>
+                                        </div>
+                                        <p style="font-size:13.5px; max-width:58ch;">{{ featured.desc }}</p>
+                                        <div class="tpl-foot">
+                                            <div class="tpl-meta" style="font-size:12.5px;">
+                                                <span><ic name="git-branch"></ic>{{ featured.nodes }} nodes</span>
+                                                <span class="badge badge-secondary" style="font-size:10.5px;">{{ featured.cat }}</span>
+                                            </div>
+                                            <button class="btn btn-primary" @click="use(featured)">
+                                                <ic name="copy" :size="14"></ic> Utiliser ce template
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card card-hover tpl-card anim-in" v-for="(t, i) in section.items" :key="t.name" :class="'d-' + (i % 6 + 1)">
+                                    <div class="tpl-preview" v-html="tplSvg(t.graph)"></div>
+                                    <div class="tpl-body">
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <h3 :title="t.name">{{ t.name }}</h3>
+                                            <span class="badge badge-secondary" style="font-size:10.5px; flex:none;">{{ t.origin === 'system' ? 'Système' : 'Mon équipe' }}</span>
+                                        </div>
+                                        <p class="clamp-2">{{ t.desc }}</p>
+                                        <div class="tpl-foot">
+                                            <div class="tpl-meta">
+                                                <span><ic name="git-branch"></ic>{{ t.nodes }} nodes</span>
+                                                <span class="badge badge-secondary" style="font-size:10.5px;">{{ t.cat }}</span>
+                                            </div>
+                                            <button class="btn btn-outline btn-sm" @click="use(t)">
+                                                Utiliser <ic name="arrow-up-right" :size="13"></ic>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section « Mon équipe » vide : invitation à publier -->
+                            <div class="empty" v-else-if="section.key === 'team'" style="padding:36px 24px;">
+                                <span class="empty-icon"><ic name="upload" :size="20"></ic></span>
+                                <b>Aucun template d'équipe</b>
+                                <p class="text-sm text-muted" style="max-width:44ch;">Publiez un workflow comme template depuis sa liste ou l'éditeur — il apparaîtra ici pour toute l'équipe.</p>
+                            </div>
+                        </section>
+                    </template>
                 </main>
             </div>
         </div>
@@ -245,41 +287,58 @@
             mixins: [FauconUI.shellMixin],
             data() {
                 return {
+                    origin: 'all',
                     cat: 'all',
+                    /* Données alignées sur les seeds système (T1–T3) + deux templates d'équipe. */
                     templates: [
                         {
-                            name: 'Support client IA',
-                            desc: 'Un message client arrive par webhook, l’IA le classe (question, réclamation, lead), rédige une réponse contextuelle et la relaie par e-mail. Les réclamations sont escaladées à l’équipe.',
-                            cat: 'Support', nodes: 5, uses: 1284, rating: '4,9', featured: true,
+                            name: 'Support client prioritaire',
+                            desc: 'Un webhook reçoit un message client ; s’il est marqué urgent, un e-mail part immédiatement à l’équipe.',
+                            cat: 'Support', origin: 'system', nodes: 3,
                             graph: {
-                                h: 110,
                                 nodes: [
-                                    { x: 6, y: 44, label: 'Webhook', color: C.trigger },
-                                    { x: 100, y: 12, label: 'IA · classe', color: C.ai },
-                                    { x: 100, y: 76, label: 'IA · réponse', color: C.ai },
-                                    { x: 192, y: 12, label: 'Email', color: C.action },
+                                    { x: 6, y: 38, label: 'Webhook', color: C.trigger },
+                                    { x: 96, y: 38, label: 'Condition', color: C.logic },
+                                    { x: 186, y: 38, label: 'Email', color: C.action },
                                 ],
-                                edges: [[0, 1], [1, 2], [2, 3]],
+                                edges: [[0, 1], [1, 2]],
                             },
                         },
                         {
-                            name: 'Veille de marché',
-                            desc: 'Chaque matin à 8 h, récupère les flux RSS concurrents, résume avec l’IA et publie la synthèse dans Slack.',
-                            cat: 'Marketing', nodes: 4, uses: 862,
+                            name: 'Traitement de leads (IA)',
+                            desc: 'Capture un lead, l’IA le classe, puis la branche adaptée : e-mail de bienvenue ou archivage.',
+                            cat: 'Ventes', origin: 'system', nodes: 5,
                             graph: {
+                                h: 110,
                                 nodes: [
-                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
-                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
-                                    { x: 186, y: 10, label: 'IA · résumé', color: C.ai },
-                                    { x: 186, y: 66, label: 'Message', color: C.action },
+                                    { x: 6, y: 12, label: 'Manuel', color: C.trigger },
+                                    { x: 6, y: 76, label: 'Formulaire', color: C.data },
+                                    { x: 96, y: 44, label: 'IA · classe', color: C.ai },
+                                    { x: 186, y: 12, label: 'Bienvenue', color: C.action },
+                                    { x: 186, y: 76, label: 'Archivé', color: C.data },
                                 ],
-                                edges: [[0, 1], [1, 2], [1, 3]],
+                                edges: [[0, 2], [1, 2], [2, 3], [2, 4]],
+                            },
+                        },
+                        {
+                            name: 'Veille du matin',
+                            desc: 'Chaque matin à 8 h, récupère un flux, le résume avec l’IA et envoie la synthèse par e-mail.',
+                            cat: 'Données', origin: 'system', nodes: 4,
+                            graph: {
+                                h: 110,
+                                nodes: [
+                                    { x: 6, y: 44, label: 'Cron 8 h', color: C.trigger },
+                                    { x: 96, y: 12, label: 'Flux RSS', color: C.data },
+                                    { x: 96, y: 76, label: 'IA · résumé', color: C.ai },
+                                    { x: 186, y: 44, label: 'Email', color: C.action },
+                                ],
+                                edges: [[0, 1], [0, 2], [1, 3], [2, 3]],
                             },
                         },
                         {
                             name: 'Onboarding lead',
                             desc: 'Capture un lead, l’enrichit, vérifie sa qualité puis déclenche la séquence de bienvenue adaptée.',
-                            cat: 'Ventes', nodes: 5, uses: 731,
+                            cat: 'Ventes', origin: 'team', nodes: 5,
                             graph: {
                                 h: 110,
                                 nodes: [
@@ -292,37 +351,9 @@
                             },
                         },
                         {
-                            name: 'Publication réseaux sociaux',
-                            desc: 'Génère un post à partir des notes de release, le filtre selon la charte, puis le programme.',
-                            cat: 'Marketing', nodes: 4, uses: 545,
-                            graph: {
-                                nodes: [
-                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
-                                    { x: 96, y: 38, label: 'IA · post', color: C.ai },
-                                    { x: 186, y: 10, label: 'Filtre', color: C.logic },
-                                    { x: 186, y: 66, label: 'HTTP', color: C.data },
-                                ],
-                                edges: [[0, 1], [1, 2], [2, 3]],
-                            },
-                        },
-                        {
-                            name: 'Surveillance des prix',
-                            desc: 'Interroge les pages produits toutes les heures, compare aux seuils et alerte si un prix baisse.',
-                            cat: 'Données', nodes: 4, uses: 428,
-                            graph: {
-                                nodes: [
-                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
-                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
-                                    { x: 186, y: 10, label: 'Condition', color: C.logic },
-                                    { x: 186, y: 66, label: 'Message', color: C.action },
-                                ],
-                                edges: [[0, 1], [1, 2], [2, 3]],
-                            },
-                        },
-                        {
                             name: 'Résumé de PR GitHub',
                             desc: 'À chaque PR ouverte, résume le diff pour les relecteurs et poste le résumé dans la PR.',
-                            cat: 'Dev', nodes: 3, uses: 396,
+                            cat: 'Dev', origin: 'team', nodes: 3,
                             graph: {
                                 nodes: [
                                     { x: 6, y: 38, label: 'Webhook', color: C.trigger },
@@ -332,24 +363,17 @@
                                 edges: [[0, 1], [1, 2]],
                             },
                         },
-                        {
-                            name: 'Qualité des données CRM',
-                            desc: 'Audit hebdomadaire des contacts : détecte les doublons et champs manquants, rapporte par e-mail.',
-                            cat: 'Données', nodes: 4, uses: 214,
-                            graph: {
-                                nodes: [
-                                    { x: 6, y: 38, label: 'Cron', color: C.trigger },
-                                    { x: 96, y: 38, label: 'HTTP', color: C.data },
-                                    { x: 186, y: 10, label: 'Transform', color: C.data },
-                                    { x: 186, y: 66, label: 'Email', color: C.action },
-                                ],
-                                edges: [[0, 1], [1, 2], [2, 3]],
-                            },
-                        },
                     ],
                 };
             },
             computed: {
+                originChips() {
+                    return [
+                        { key: 'all', label: 'Tous', count: this.templates.length },
+                        { key: 'system', label: 'Système', count: this.templates.filter((t) => t.origin === 'system').length },
+                        { key: 'team', label: 'Mon équipe', count: this.templates.filter((t) => t.origin === 'team').length },
+                    ];
+                },
                 categories() {
                     const counts = {};
                     this.templates.forEach((t) => {
@@ -360,10 +384,28 @@
                         ...Object.keys(counts).map((k) => ({ key: k, label: k, count: counts[k] })),
                     ];
                 },
-                filtered() {
-                    return this.templates.filter((t) => !t.featured || this.cat !== 'all')
-                        .filter((t) => this.cat === 'all' || t.cat === this.cat)
-                        .filter((t) => !t.featured);
+                featured() {
+                    return this.templates.find((t) => t.origin === 'system') ?? null;
+                },
+                showFeatured() {
+                    return this.origin === 'all' && this.cat === 'all' && !!this.featured;
+                },
+                sections() {
+                    const byCat = (t) => this.cat === 'all' || t.cat === this.cat;
+                    const system = this.templates.filter((t) => t.origin === 'system' && byCat(t));
+                    const team = this.templates.filter((t) => t.origin === 'team' && byCat(t));
+                    const featuredHidden = this.showFeatured && this.featured ? system.filter((t) => t !== this.featured) : system;
+
+                    if (this.origin === 'system') {
+                        return [{ key: 'system', label: 'Templates système', items: featuredHidden }];
+                    }
+                    if (this.origin === 'team') {
+                        return [{ key: 'team', label: 'Mon équipe', items: team }];
+                    }
+                    return [
+                        { key: 'system', label: 'Templates système', items: featuredHidden },
+                        { key: 'team', label: 'Mon équipe', items: team },
+                    ];
                 },
             },
             methods: {

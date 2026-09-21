@@ -436,43 +436,47 @@
                                 <p class="section-desc">Credentials chiffrés au repos — jamais exposés au frontend ni dans les logs.</p>
 
                                 <div class="cred-grid anim-in d-2">
-                                    <div class="card card-hover cred-card" v-for="c in creds" :key="c.name">
+                                    <div class="card card-hover cred-card" v-for="i in integrations" :key="i.id">
                                         <div class="cred-head">
-                                            <span class="cred-logo" :style="{ background: c.bg, color: c.fg }">{{ c.letter }}</span>
+                                            <span class="cred-logo" :style="{ background: typeStyle(i.type).bg, color: typeStyle(i.type).fg }">{{ typeStyle(i.type).letter }}</span>
                                             <div style="flex:1; min-width:0;">
-                                                <b style="font-size:13.5px; display:block;">{{ c.name }}</b>
-                                                <span class="text-xs text-muted">{{ c.provider }}</span>
+                                                <b style="font-size:13.5px; display:block;">{{ i.name }}</b>
+                                                <span class="text-xs text-muted">{{ typeStyle(i.type).label }}</span>
                                             </div>
-                                            <span class="badge badge-success"><span class="dot"></span> Connecté</span>
+                                            <span class="badge" :class="testBadgeClass(i.test)"><span class="dot" v-if="i.test === 'success'"></span> {{ testBadgeLabel(i.test) }}</span>
                                         </div>
-                                        <div class="cred-key" :class="{ blurred: !c.revealed }">
-                                            <span>{{ c.key }}</span>
-                                            <button @click="c.revealed = !c.revealed" :aria-label="c.revealed ? 'Masquer' : 'Révéler'">
-                                                <ic :name="c.revealed ? 'eye-off' : 'eye'" :size="13"></ic>
-                                            </button>
-                                            <button @click="copy(c.key)" aria-label="Copier"><ic name="copy" :size="13"></ic></button>
+                                        <div class="cred-key" style="cursor:default;">
+                                            <ic name="link" :size="13"></ic>
+                                            <span>{{ i.meta }}</span>
+                                            <span class="badge badge-secondary" style="margin-left:auto; gap:4px;"><ic name="lock" :size="11"></ic> Secret masqué</span>
                                         </div>
-                                        <div style="display:flex; align-items:center; justify-content:space-between;">
-                                            <span class="text-xs text-muted">Utilisé par {{ c.usedBy }} workflow{{ c.usedBy > 1 ? 's' : '' }}</span>
-                                            <div style="position:relative" v-click-outside="() => credMenu = null">
-                                                <button class="icon-btn" style="width:28px; height:28px;" @click="credMenu = credMenu === c.name ? null : c.name" aria-label="Options">
-                                                    <ic name="ellipsis" :size="14"></ic>
+                                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                                            <span class="text-xs text-muted">Utilisé par {{ i.usedBy }} workflow{{ i.usedBy > 1 ? 's' : '' }}</span>
+                                            <div style="display:flex; gap:6px; align-items:center;">
+                                                <button class="btn btn-outline btn-sm" :disabled="testingId === i.id" @click="testIntegration(i)">
+                                                    <span v-if="testingId === i.id" class="spinner" style="width:12px; height:12px; border-top-color:currentColor;"></span>
+                                                    <ic v-else name="plug-zap" :size="13"></ic>
+                                                    {{ testingId === i.id ? 'Test…' : 'Tester' }}
                                                 </button>
-                                                <transition name="pop">
-                                                    <div class="dropdown" v-if="credMenu === c.name" style="top:calc(100% + 6px); right:0; min-width:170px;">
-                                                        <button class="dropdown-item" @click="credMenu = null"><ic name="pencil" :size="14"></ic> Renommer</button>
-                                                        <button class="dropdown-item" @click="credMenu = null"><ic name="history" :size="14"></ic> Rotation de clé</button>
-                                                        <div class="dropdown-sep"></div>
-                                                        <button class="dropdown-item danger" @click="credMenu = null; removeCred(c)"><ic name="trash-2" :size="14"></ic> Supprimer</button>
-                                                    </div>
-                                                </transition>
+                                                <div style="position:relative" v-click-outside="() => integrationMenu = null">
+                                                    <button class="icon-btn" style="width:28px; height:28px;" @click="integrationMenu = integrationMenu === i.id ? null : i.id" aria-label="Options">
+                                                        <ic name="ellipsis" :size="14"></ic>
+                                                    </button>
+                                                    <transition name="pop">
+                                                        <div class="dropdown" v-if="integrationMenu === i.id" style="top:calc(100% + 6px); right:0; min-width:170px;">
+                                                            <button class="dropdown-item" @click="integrationMenu = null; openIntegrationDialog(i)"><ic name="pencil" :size="14"></ic> Modifier</button>
+                                                            <div class="dropdown-sep"></div>
+                                                            <button class="dropdown-item danger" @click="integrationMenu = null; askDeleteIntegration(i)"><ic name="trash-2" :size="14"></ic> Supprimer</button>
+                                                        </div>
+                                                    </transition>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
                                     <button class="cred-card card" style="border-style:dashed; align-items:center; justify-content:center; display:flex; gap:8px; color:var(--muted-foreground); background:transparent; cursor:pointer; min-height:150px;"
-                                            @click="addOpen = true">
-                                        <ic name="plus" :size="18"></ic> Ajouter un credential
+                                            @click="openIntegrationDialog(null)">
+                                        <ic name="plus" :size="18"></ic> Ajouter une intégration
                                     </button>
                                 </div>
                             </section>
@@ -513,47 +517,164 @@
             </div>
         </transition>
 
-        <!-- ================= Dialog : credential ================= -->
+        <!-- ================= Dialog : intégration (création / édition) ================= -->
         <transition name="fade">
-            <div class="overlay" v-if="addOpen" @click="addOpen = false"></div>
+            <div class="overlay" v-if="integrationOpen" @click="integrationOpen = false"></div>
         </transition>
         <transition name="zoom">
-            <div class="dialog" v-if="addOpen" role="dialog" aria-label="Ajouter un credential">
-                <button class="dialog-close" @click="addOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
-                <div class="dialog-title">Ajouter un credential</div>
-                <p class="dialog-description">La clé est chiffrée avant stockage et masquée dans les journaux.</p>
+            <div class="dialog" v-if="integrationOpen" role="dialog" :aria-label="integrationForm.mode === 'create' ? 'Ajouter une intégration' : 'Modifier l’intégration'">
+                <button class="dialog-close" @click="integrationOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                <div class="dialog-title">{{ integrationForm.mode === 'create' ? 'Ajouter une intégration' : 'Modifier l’intégration' }}</div>
+                <p class="dialog-description">Les secrets sont chiffrés avant stockage et masqués dans les journaux.</p>
                 <div style="display:grid; gap:15px; margin-top:20px;">
                     <div class="field">
-                        <label class="label" for="cred-name">Nom</label>
-                        <input id="cred-name" class="input" v-model="credForm.name" placeholder="OpenAI — production">
+                        <label class="label" for="int-name">Nom</label>
+                        <input id="int-name" class="input" v-model="integrationForm.name" placeholder="CRM — production">
                     </div>
                     <div class="field">
-                        <label class="label" for="cred-provider">Fournisseur</label>
-                        <select id="cred-provider" class="select" v-model="credForm.provider">
-                            <option>OpenAI</option><option>Anthropic</option><option>Slack</option>
-                            <option>GitHub</option><option>SMTP / Email</option><option>Autre (HTTP)</option>
+                        <label class="label" for="int-type">Fournisseur</label>
+                        <select id="int-type" class="select" v-model="integrationForm.type" :disabled="integrationForm.mode === 'edit'">
+                            <option value="generic_http">HTTP générique</option>
+                            <option value="smtp">SMTP / E-mail</option>
                         </select>
                     </div>
-                    <div class="field">
-                        <label class="label" for="cred-key">Clé / secret</label>
-                        <div class="input-wrap">
-                            <ic name="key-round" :size="15"></ic>
-                            <input id="cred-key" :type="credForm.show ? 'text' : 'password'" class="input" v-model="credForm.key"
-                                   placeholder="sk-…" autocomplete="off">
-                            <button type="button" class="input-trailing" @click="credForm.show = !credForm.show">
-                                <ic :name="credForm.show ? 'eye-off' : 'eye'" :size="15"></ic>
-                            </button>
+
+                    <!-- Champs : HTTP générique -->
+                    <template v-if="integrationForm.type === 'generic_http'">
+                        <div class="field">
+                            <label class="label" for="int-baseurl">URL de base</label>
+                            <input id="int-baseurl" class="input text-mono" v-model="integrationForm.baseUrl" placeholder="https://api.exemple.com">
                         </div>
-                    </div>
+                        <div class="field">
+                            <label class="label" for="int-auth">Authentification</label>
+                            <select id="int-auth" class="select" v-model="integrationForm.auth">
+                                <option value="none">Aucune</option>
+                                <option value="bearer">Bearer token</option>
+                                <option value="basic">Basic</option>
+                                <option value="header">En-tête personnalisé</option>
+                            </select>
+                        </div>
+                        <div class="field" v-if="integrationForm.auth === 'bearer'">
+                            <label class="label" for="int-token">Jeton</label>
+                            <div class="input-wrap">
+                                <ic name="key-round" :size="15"></ic>
+                                <input id="int-token" :type="integrationForm.showSecret ? 'text' : 'password'" class="input" v-model="integrationForm.token"
+                                       :placeholder="integrationForm.mode === 'edit' ? 'Inchangé si vide' : 'sk-…'" autocomplete="off">
+                                <button type="button" class="input-trailing" @click="integrationForm.showSecret = !integrationForm.showSecret">
+                                    <ic :name="integrationForm.showSecret ? 'eye-off' : 'eye'" :size="15"></ic>
+                                </button>
+                            </div>
+                        </div>
+                        <template v-if="integrationForm.auth === 'basic'">
+                            <div class="field">
+                                <label class="label" for="int-user">Nom d’utilisateur</label>
+                                <input id="int-user" class="input" v-model="integrationForm.username" autocomplete="off">
+                            </div>
+                            <div class="field">
+                                <label class="label" for="int-pass">Mot de passe</label>
+                                <div class="input-wrap">
+                                    <ic name="key-round" :size="15"></ic>
+                                    <input id="int-pass" :type="integrationForm.showSecret ? 'text' : 'password'" class="input" v-model="integrationForm.password"
+                                           :placeholder="integrationForm.mode === 'edit' ? 'Inchangé si vide' : null" autocomplete="off">
+                                    <button type="button" class="input-trailing" @click="integrationForm.showSecret = !integrationForm.showSecret">
+                                        <ic :name="integrationForm.showSecret ? 'eye-off' : 'eye'" :size="15"></ic>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <template v-if="integrationForm.auth === 'header'">
+                            <div class="field">
+                                <label class="label" for="int-headername">Nom d’en-tête</label>
+                                <input id="int-headername" class="input text-mono" v-model="integrationForm.headerName" placeholder="X-Api-Key">
+                            </div>
+                            <div class="field">
+                                <label class="label" for="int-headervalue">Valeur d’en-tête</label>
+                                <div class="input-wrap">
+                                    <ic name="key-round" :size="15"></ic>
+                                    <input id="int-headervalue" :type="integrationForm.showSecret ? 'text' : 'password'" class="input" v-model="integrationForm.headerValue"
+                                           :placeholder="integrationForm.mode === 'edit' ? 'Inchangé si vide' : null" autocomplete="off">
+                                    <button type="button" class="input-trailing" @click="integrationForm.showSecret = !integrationForm.showSecret">
+                                        <ic :name="integrationForm.showSecret ? 'eye-off' : 'eye'" :size="15"></ic>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </template>
+
+                    <!-- Champs : SMTP / E-mail -->
+                    <template v-else>
+                        <div style="display:grid; grid-template-columns:2fr 1fr; gap:12px;">
+                            <div class="field">
+                                <label class="label" for="int-host">Hôte</label>
+                                <input id="int-host" class="input text-mono" v-model="integrationForm.host" placeholder="smtp.exemple.com">
+                            </div>
+                            <div class="field">
+                                <label class="label" for="int-port">Port</label>
+                                <input id="int-port" class="input text-mono" type="number" min="1" max="65535" v-model="integrationForm.port" placeholder="587">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label" for="int-encryption">Chiffrement</label>
+                            <select id="int-encryption" class="select" v-model="integrationForm.encryption">
+                                <option value="tls">TLS (démarré)</option>
+                                <option value="ssl">SSL implicite</option>
+                                <option value="none">Aucun</option>
+                            </select>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                            <div class="field">
+                                <label class="label" for="int-smtpuser">Utilisateur</label>
+                                <input id="int-smtpuser" class="input" v-model="integrationForm.username" autocomplete="off">
+                            </div>
+                            <div class="field">
+                                <label class="label" for="int-smtppass">Mot de passe</label>
+                                <div class="input-wrap">
+                                    <ic name="key-round" :size="15"></ic>
+                                    <input id="int-smtppass" :type="integrationForm.showSecret ? 'text' : 'password'" class="input" v-model="integrationForm.password"
+                                           :placeholder="integrationForm.mode === 'edit' ? 'Inchangé si vide' : null" autocomplete="off">
+                                    <button type="button" class="input-trailing" @click="integrationForm.showSecret = !integrationForm.showSecret">
+                                        <ic :name="integrationForm.showSecret ? 'eye-off' : 'eye'" :size="15"></ic>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="label" for="int-from">Adresse expéditeur (optionnelle)</label>
+                            <input id="int-from" class="input" v-model="integrationForm.from" placeholder="no-reply@exemple.com">
+                        </div>
+                    </template>
+
                     <div class="alert alert-info">
                         <ic name="lock" :size="15"></ic>
                         <div>Chiffrement AES-256 au repos · secrets masqués automatiquement dans les logs d'exécution.</div>
                     </div>
                 </div>
                 <div class="dialog-footer">
-                    <button class="btn btn-ghost" @click="addOpen = false">Annuler</button>
-                    <button class="btn btn-primary" :disabled="!credForm.name || !credForm.key" @click="addCred">
-                        <ic name="lock" :size="14"></ic> Chiffrer et enregistrer
+                    <button class="btn btn-ghost" @click="integrationOpen = false">Annuler</button>
+                    <button class="btn btn-primary" :disabled="!canSaveIntegration" @click="saveIntegration">
+                        <ic name="lock" :size="14"></ic> {{ integrationForm.mode === 'create' ? 'Chiffrer et enregistrer' : 'Enregistrer' }}
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- ================= Dialog : suppression d’intégration ================= -->
+        <transition name="fade">
+            <div class="overlay" v-if="deleteIntegrationOpen" @click="deleteIntegrationOpen = false"></div>
+        </transition>
+        <transition name="zoom">
+            <div class="dialog" v-if="deleteIntegrationOpen" role="dialog" aria-label="Supprimer l’intégration">
+                <button class="dialog-close" @click="deleteIntegrationOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                <div class="dialog-title">Supprimer « {{ deleteTarget.name }} »</div>
+                <p class="dialog-description">Les credentials seront définitivement effacés. Cette action est irréversible.</p>
+                <div class="alert alert-warning" style="margin-top:16px;" v-if="deleteTarget.usedBy > 0">
+                    <ic name="triangle-alert" :size="15"></ic>
+                    <div>{{ deleteTarget.usedBy }} workflow{{ deleteTarget.usedBy > 1 ? 's' : '' }} référence{{ deleteTarget.usedBy > 1 ? 'nt' : '' }} cette intégration — les nodes concernés échoueront après suppression.</div>
+                </div>
+                <div class="dialog-footer">
+                    <button class="btn btn-ghost" @click="deleteIntegrationOpen = false">Annuler</button>
+                    <button class="btn btn-destructive" @click="confirmDeleteIntegration">
+                        <ic name="trash-2" :size="14"></ic> Supprimer
                     </button>
                 </div>
             </div>
@@ -608,6 +729,26 @@
             return `FAU-${part(4)}-${part(4)}`;
         };
 
+        /* Formulaire d'intégration vierge (miroir des champs par type) */
+        const emptyIntegrationForm = () => ({
+            mode: 'create',
+            id: null,
+            name: '',
+            type: 'generic_http',
+            baseUrl: '',
+            auth: 'none',
+            token: '',
+            username: '',
+            password: '',
+            headerName: '',
+            headerValue: '',
+            host: '',
+            port: '587',
+            encryption: 'tls',
+            from: '',
+            showSecret: false,
+        });
+
         createApp({
             mixins: [FauconUI.shellMixin],
             data() {
@@ -653,15 +794,17 @@
                     ],
                     inviteOpen: false,
                     inviteForm: { emails: '', role: 'Membre' },
-                    creds: [
-                        { name: 'OpenAI — production', provider: 'OpenAI', letter: 'O', bg: 'color-mix(in srgb, var(--cat-4) 15%, transparent)', fg: 'var(--cat-4)', key: 'sk-proj-4f2A9x…', revealed: false, usedBy: 5 },
-                        { name: 'Anthropic — production', provider: 'Anthropic', letter: 'A', bg: 'color-mix(in srgb, var(--cat-1) 16%, transparent)', fg: 'var(--cat-1)', key: 'sk-ant-api03-8Qz…', revealed: false, usedBy: 3 },
-                        { name: 'Slack — Studio Faucon', provider: 'Slack', letter: 'S', bg: 'color-mix(in srgb, var(--cat-5) 15%, transparent)', fg: 'var(--cat-5)', key: 'xoxb-2271-…', revealed: false, usedBy: 4 },
-                        { name: 'GitHub — PAT fine-grained', provider: 'GitHub', letter: 'G', bg: 'color-mix(in srgb, var(--cat-2) 15%, transparent)', fg: 'var(--cat-2)', key: 'github_pat_9A2F…', revealed: false, usedBy: 2 },
+                    integrations: [
+                        { id: 1, name: 'CRM — production', type: 'generic_http', meta: 'https://crm.exemple.com/api', test: 'success', usedBy: 3 },
+                        { id: 2, name: 'SMTP transactionnel', type: 'smtp', meta: 'smtp.exemple.com:587', test: 'failed', usedBy: 1 },
+                        { id: 3, name: 'GitHub — PAT fine-grained', type: 'generic_http', meta: 'https://api.github.com', test: null, usedBy: 0 },
                     ],
-                    credMenu: null,
-                    addOpen: false,
-                    credForm: { name: '', provider: 'OpenAI', key: '', show: false },
+                    integrationMenu: null,
+                    testingId: null,
+                    integrationOpen: false,
+                    integrationForm: emptyIntegrationForm(),
+                    deleteIntegrationOpen: false,
+                    deleteTarget: { name: '', usedBy: 0 },
                 };
             },
             computed: {
@@ -739,24 +882,70 @@
                     this.pending = this.pending.filter((x) => x !== p);
                     this.$toast({ title: 'Invitation révoquée', description: p.email, type: 'info' });
                 },
-                removeCred(c) {
-                    this.creds = this.creds.filter((x) => x !== c);
-                    this.$toast({ title: 'Credential supprimé', description: c.name, type: 'info' });
+                /* ---- Intégrations ---- */
+                typeStyle(type) {
+                    return type === 'smtp'
+                        ? { label: 'SMTP / E-mail', letter: 'M', bg: 'color-mix(in srgb, var(--cat-4) 15%, transparent)', fg: 'var(--cat-4)' }
+                        : { label: 'HTTP générique', letter: 'H', bg: 'color-mix(in srgb, var(--cat-2) 15%, transparent)', fg: 'var(--cat-2)' };
                 },
-                addCred() {
-                    this.creds.unshift({
-                        name: this.credForm.name,
-                        provider: this.credForm.provider,
-                        letter: this.credForm.provider.charAt(0).toUpperCase(),
-                        bg: 'color-mix(in srgb, var(--cat-2) 15%, transparent)',
-                        fg: 'var(--cat-2)',
-                        key: this.credForm.key.slice(0, 8) + '…',
-                        revealed: false,
-                        usedBy: 0,
-                    });
-                    this.addOpen = false;
-                    this.credForm = { name: '', provider: 'OpenAI', key: '', show: false };
-                    this.$toast({ title: 'Credential chiffré et enregistré', type: 'success' });
+                testBadgeLabel(test) {
+                    return test === 'success' ? 'Connectée' : test === 'failed' ? 'Échec' : 'Non testée';
+                },
+                testBadgeClass(test) {
+                    return test === 'success' ? 'badge-success' : test === 'failed' ? 'badge-danger' : 'badge-secondary';
+                },
+                openIntegrationDialog(i) {
+                    this.integrationForm = i
+                        ? { ...emptyIntegrationForm(), mode: 'edit', id: i.id, name: i.name, type: i.type, baseUrl: i.type === 'generic_http' ? i.meta : '', host: i.type === 'smtp' ? i.meta.split(':')[0] : '', port: i.type === 'smtp' ? i.meta.split(':')[1] : '587' }
+                        : emptyIntegrationForm();
+                    this.integrationOpen = true;
+                },
+                get canSaveIntegration() {
+                    const f = this.integrationForm;
+                    if (!f.name) return false;
+                    if (f.type === 'generic_http') return !!f.baseUrl;
+                    return !!f.host && !!f.port;
+                },
+                saveIntegration() {
+                    const f = this.integrationForm;
+                    if (f.mode === 'create') {
+                        this.integrations.unshift({
+                            id: Date.now(),
+                            name: f.name,
+                            type: f.type,
+                            meta: f.type === 'generic_http' ? f.baseUrl : `${f.host}:${f.port}`,
+                            test: null,
+                            usedBy: 0,
+                        });
+                        this.$toast({ title: 'Intégration chiffrée et enregistrée', type: 'success' });
+                    } else {
+                        const i = this.integrations.find((x) => x.id === f.id);
+                        if (i) {
+                            i.name = f.name;
+                            if (f.type === 'generic_http' && f.baseUrl) i.meta = f.baseUrl;
+                            if (f.type === 'smtp' && f.host) i.meta = `${f.host}:${f.port}`;
+                        }
+                        this.$toast({ title: 'Intégration mise à jour', type: 'success' });
+                    }
+                    this.integrationOpen = false;
+                },
+                testIntegration(i) {
+                    this.testingId = i.id;
+                    /* App serveur : test réel via le garde SSRF (HTTP) ou le handshake SMTP */
+                    setTimeout(() => {
+                        this.testingId = null;
+                        i.test = 'success';
+                        this.$toast({ title: 'Connexion établie', description: i.name, type: 'success' });
+                    }, 900);
+                },
+                askDeleteIntegration(i) {
+                    this.deleteTarget = i;
+                    this.deleteIntegrationOpen = true;
+                },
+                confirmDeleteIntegration() {
+                    this.integrations = this.integrations.filter((x) => x.id !== this.deleteTarget.id);
+                    this.deleteIntegrationOpen = false;
+                    this.$toast({ title: 'Intégration supprimée', description: this.deleteTarget.name, type: 'info' });
                 },
             },
             mounted() {

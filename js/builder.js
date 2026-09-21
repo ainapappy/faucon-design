@@ -18,15 +18,37 @@
         action: { label: 'Actions', color: 'var(--cat-4)', icon: 'send' },
     };
 
+    /* Options du select Modèle — composite {provider}/{model}, reflétées de la
+       config serveur (fournisseurs enabled uniquement, fake d'abord : un
+       test-run ne dépense jamais un appel réel par accident). */
+    const AI_MODEL_OPTIONS = [
+        'fake/demo',
+        'openai/gpt-4o-mini',
+        'openai/gpt-4o',
+        'anthropic/claude-haiku-4-5',
+        'anthropic/claude-sonnet-5',
+        'anthropic/claude-opus-5',
+        'zai/glm-4.6',
+        'zai/glm-4.5-flash',
+    ];
+
+    /* Clés de sortie des nodes IA (contrat moteur) : la clé usage
+       {prompt_tokens, completion_tokens} accompagne toujours la sortie du mode. */
+    const AI_OUTPUT_KEYS = {
+        'ai.prompt': ['text', 'usage'],
+        'ai.classification': ['label', 'usage'],
+        'ai.extraction': ['structured', 'usage'],
+        'ai.summarization': ['text', 'usage'],
+        'ai.generation': ['text', 'usage'],
+    };
+
     /* Catalogue de types — miroir du futur registre de handlers */
     const NODE_TYPES = {
         webhook: {
             cat: 'trigger', icon: 'webhook', label: 'Webhook', desc: 'Appel HTTP entrant, idempotent et rate-limité',
             inputs: 0, outputs: [{ id: 'out', pos: 0.5 }],
-            fields: [
-                { key: 'method', label: 'Méthode', type: 'select', options: ['POST', 'GET'] },
-                { key: 'path', label: 'Chemin', type: 'text', placeholder: 'hooks/leads' },
-            ],
+            fields: [],
+            webhookPanel: true,
         },
         schedule: {
             cat: 'trigger', icon: 'calendar-clock', label: 'Planifié', desc: 'Exécution récurrente (expression cron)',
@@ -54,19 +76,18 @@
                 { key: 'expression', label: 'Expression', type: 'textarea', placeholder: '{{ trigger.email }}', mono: true },
             ],
         },
-        http: {
-            cat: 'data', icon: 'globe', label: 'Requête HTTP', desc: 'Appel sortant protégé (garde-fous SSRF)',
-            inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
-            fields: [
-                { key: 'method', label: 'Méthode', type: 'select', options: ['GET', 'POST', 'PUT'] },
-                { key: 'url', label: 'URL', type: 'text', placeholder: 'https://api.exemple.com/v1/…', mono: true },
-            ],
+        output: {
+            cat: 'data', icon: 'arrow-right-to-line', label: 'Sortie', desc: 'Termine le run et expose le résultat final',
+            inputs: 1, outputs: [],
+            fields: [],
         },
         condition: {
             cat: 'logic', icon: 'git-branch', label: 'Condition', desc: 'Deux branches : true / false',
             inputs: 1, outputs: [{ id: 'true', pos: 0.36, label: 'true' }, { id: 'false', pos: 0.68, label: 'false' }],
             fields: [
-                { key: 'expression', label: 'Expression', type: 'text', placeholder: '{{ ai.label }} == "lead"', mono: true },
+                { key: 'expression', label: 'Expression', type: 'text', placeholder: '{{ ai.label }}', mono: true },
+                { key: 'operator', label: 'Opérateur', type: 'select', options: ['==', '!=', 'contains', 'empty'] },
+                { key: 'value', label: 'Valeur', type: 'text', placeholder: 'lead' },
             ],
         },
         filter: {
@@ -76,30 +97,56 @@
                 { key: 'expression', label: 'Condition d’inclusion', type: 'text', mono: true },
             ],
         },
-        classification: {
+        'ai.prompt': {
+            cat: 'ai', icon: 'pen-line', label: 'Prompt', desc: 'Interroge un modèle IA avec un prompt libre',
+            inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
+            fields: [
+                { key: 'model', label: 'Modèle', type: 'select', options: AI_MODEL_OPTIONS },
+                { key: 'prompt', label: 'Prompt', type: 'textarea' },
+                { key: 'temperature', label: 'Température', type: 'range', min: 0, max: 1, step: 0.1 },
+                { key: 'max_tokens', label: 'Max tokens', type: 'text', mono: true },
+            ],
+        },
+        'ai.classification': {
             cat: 'ai', icon: 'bot', label: 'Classification', desc: 'Catégorise un contenu (sortie structurée)',
             inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
             fields: [
-                { key: 'model', label: 'Modèle', type: 'select', options: ['gpt-4o-mini', 'claude-haiku', 'claude-sonnet'] },
+                { key: 'model', label: 'Modèle', type: 'select', options: AI_MODEL_OPTIONS },
                 { key: 'prompt', label: 'Prompt', type: 'textarea', placeholder: 'Classe ce message parmi…' },
                 { key: 'labels', label: 'Étiquettes', type: 'text', placeholder: 'lead, spam, question', mono: true },
+                { key: 'temperature', label: 'Température', type: 'range', min: 0, max: 1, step: 0.1 },
+                { key: 'max_tokens', label: 'Max tokens', type: 'text', mono: true },
             ],
         },
-        generation: {
-            cat: 'ai', icon: 'sparkles', label: 'Génération', desc: 'Produit un texte à partir du contexte',
+        'ai.extraction': {
+            cat: 'ai', icon: 'scan-text', label: 'Extraction', desc: 'Extrait des champs structurés (JSON) d’un contenu',
             inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
             fields: [
-                { key: 'model', label: 'Modèle', type: 'select', options: ['gpt-4o', 'claude-sonnet', 'claude-haiku'] },
-                { key: 'prompt', label: 'Prompt', type: 'textarea' },
+                { key: 'model', label: 'Modèle', type: 'select', options: AI_MODEL_OPTIONS },
+                { key: 'prompt', label: 'Contenu à analyser', type: 'textarea' },
+                { key: 'fields', label: 'Champs (Clé: type, une par ligne)', type: 'textarea', placeholder: 'nom: text\nmontant: number', mono: true },
                 { key: 'temperature', label: 'Température', type: 'range', min: 0, max: 1, step: 0.1 },
+                { key: 'max_tokens', label: 'Max tokens', type: 'text', mono: true },
             ],
         },
-        summary: {
+        'ai.summarization': {
             cat: 'ai', icon: 'file-text', label: 'Résumé', desc: 'Condense un contenu long',
             inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
             fields: [
-                { key: 'model', label: 'Modèle', type: 'select', options: ['gpt-4o-mini', 'claude-haiku'] },
+                { key: 'model', label: 'Modèle', type: 'select', options: AI_MODEL_OPTIONS },
                 { key: 'prompt', label: 'Consigne', type: 'textarea' },
+                { key: 'temperature', label: 'Température', type: 'range', min: 0, max: 1, step: 0.1 },
+                { key: 'max_tokens', label: 'Max tokens', type: 'text', mono: true },
+            ],
+        },
+        'ai.generation': {
+            cat: 'ai', icon: 'sparkles', label: 'Génération', desc: 'Produit un texte à partir du contexte',
+            inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
+            fields: [
+                { key: 'model', label: 'Modèle', type: 'select', options: AI_MODEL_OPTIONS },
+                { key: 'prompt', label: 'Instructions', type: 'textarea' },
+                { key: 'temperature', label: 'Température', type: 'range', min: 0, max: 1, step: 0.1 },
+                { key: 'max_tokens', label: 'Max tokens', type: 'text', mono: true },
             ],
         },
         email: {
@@ -109,6 +156,7 @@
                 { key: 'to', label: 'Destinataire', type: 'text', placeholder: '{{ trigger.email }}', mono: true },
                 { key: 'subject', label: 'Sujet', type: 'text' },
                 { key: 'body', label: 'Corps', type: 'textarea' },
+                { key: 'integration_id', label: 'Intégration SMTP (optionnelle)', type: 'integration' },
             ],
         },
         slack: {
@@ -117,6 +165,18 @@
             fields: [
                 { key: 'channel', label: 'Canal', type: 'text', placeholder: '#ventes' },
                 { key: 'message', label: 'Message', type: 'textarea' },
+            ],
+        },
+        http: {
+            cat: 'action', icon: 'globe', label: 'Requête HTTP', desc: 'Appel sortant protégé (garde-fous SSRF)',
+            inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
+            fields: [
+                { key: 'method', label: 'Méthode', type: 'select', options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+                { key: 'url', label: 'URL', type: 'text', placeholder: 'https://api.exemple.com/v1/…', mono: true },
+                { key: 'headers', label: 'En-têtes (Clé: valeur, une par ligne)', type: 'textarea', placeholder: 'Content-Type: application/json', mono: true },
+                { key: 'body', label: 'Corps', type: 'textarea', placeholder: '{"name": "{{ trigger.name }}"}', mono: true },
+                { key: 'integration_id', label: 'Intégration', type: 'integration' },
+                { key: 'failure_policy', label: 'Politique d’échec', type: 'select', options: ['fail', 'continue'] },
             ],
         },
         delay: {
@@ -132,7 +192,7 @@
         trigger: { event: 'lead.received', payload: { email: 'client@exemple.com', message: 'Bonjour, je veux une démo…' } },
         data: { status: 200, body: { items: 3 } },
         logic: { branch: 'true', evaluated: '{{ ai.label }} == "lead"' },
-        ai: { label: 'lead', confidence: 0.94, tokens: { input: 412, output: 58 } },
+        ai: { label: 'lead', usage: { prompt_tokens: 128, completion_tokens: 45 } },
         action: { delivered: true, id: 'msg_01J9…' },
     };
 
@@ -154,11 +214,12 @@
                 view: { x: 30, y: 24, zoom: 0.82 },
                 nodes: [
                     { id: 'n1', type: 'webhook', title: 'Nouveau lead', x: 60, y: 200, status: 'idle', config: { method: 'POST', path: 'hooks/leads' } },
-                    { id: 'n2', type: 'classification', title: 'Classifier le message', x: 330, y: 150, status: 'idle', config: { model: 'claude-haiku', prompt: 'Classe ce message entrant parmi les étiquettes.', labels: 'lead, spam, question' } },
-                    { id: 'n3', type: 'condition', title: 'Est-ce un lead ?', x: 610, y: 150, status: 'idle', config: { expression: '{{ ai.label }} == "lead"' } },
-                    { id: 'n4', type: 'generation', title: 'Rédiger la réponse', x: 890, y: 40, status: 'idle', config: { model: 'claude-sonnet', prompt: 'Rédige une réponse commerciale courte.', temperature: 0.4 } },
+                    { id: 'n2', type: 'ai.classification', title: 'Classifier le message', x: 330, y: 150, status: 'idle', config: { model: 'anthropic/claude-haiku-4-5', prompt: 'Classe ce message entrant parmi les étiquettes.', labels: 'lead, spam, question', temperature: 0.4, max_tokens: '' } },
+                    { id: 'n3', type: 'condition', title: 'Est-ce un lead ?', x: 610, y: 150, status: 'idle', config: { expression: '{{ n2.label }}', operator: '==', value: 'lead' } },
+                    { id: 'n4', type: 'ai.generation', title: 'Rédiger la réponse', x: 890, y: 40, status: 'idle', config: { model: 'anthropic/claude-sonnet-5', prompt: 'Rédige une réponse commerciale courte.', temperature: 0.4, max_tokens: '' } },
                     { id: 'n5', type: 'email', title: 'Envoyer la réponse', x: 1170, y: 40, status: 'idle', config: { to: '{{ trigger.email }}', subject: 'Merci pour votre message', body: 'Bonjour {{ trigger.name }}…' } },
                     { id: 'n6', type: 'http', title: 'Noter le spam', x: 890, y: 260, status: 'idle', config: { method: 'POST', url: 'https://api.exemple.com/spam' } },
+                    { id: 'n7', type: 'output', title: 'Capturer le résultat', x: 1170, y: 260, status: 'idle', config: {} },
                 ],
                 edges: [
                     { id: 'e1', from: 'n1', fromPort: 'out', to: 'n2' },
@@ -166,6 +227,7 @@
                     { id: 'e3', from: 'n3', fromPort: 'true', to: 'n4' },
                     { id: 'e4', from: 'n3', fromPort: 'false', to: 'n6' },
                     { id: 'e5', from: 'n4', fromPort: 'out', to: 'n5' },
+                    { id: 'e6', from: 'n6', fromPort: 'out', to: 'n7' },
                 ],
                 selection: null, // { kind: 'node'|'edge', id }
                 connecting: null, // { fromId, fromPort, x, y }
@@ -175,9 +237,28 @@
                 drawerOpen: false,
                 logs: [],
                 runSummary: null,
+                testOpen: false,
+                testJson: JSON.stringify(
+                    { email: 'client@example.com', name: 'Aina', message: 'Bonjour, je souhaite un devis pour le pack Pro.' },
+                    null,
+                    2,
+                ),
+                testError: null,
                 paletteOpen: true,
                 inspectorOpen: true,
                 inspectorTab: 'settings',
+                regenerateOpen: false,
+                /* Aide-mémoire des variables de l'inspecteur IA (repliable) */
+                aiCheatOpen: false,
+                /* Intégrations de l'équipe (props, jamais de credential) */
+                integrations: [
+                    { id: 1, name: 'CRM API — production', type: 'generic_http' },
+                    { id: 2, name: 'SMTP transactionnel', type: 'smtp' },
+                ],
+                /* URL publique du webhook du workflow (chargée à la sélection du node) */
+                webhookUrl: 'https://faucon.app/webhooks/9f8e7d6c5b4a3f2e1d0c',
+                webhookUrlLoading: false,
+                webhookCopied: false,
             };
         },
         computed: {
@@ -215,6 +296,48 @@
                 });
                 return groups;
             },
+            /* Chemins interpolables du node sélectionné : contexte trigger +
+               ancêtres (BFS sur les arêtes entrants), aide-mémoire de l'inspecteur IA. */
+            upstreamVariables() {
+                if (!this.selectedNode) {
+                    return [];
+                }
+                const paths = ['{{ trigger.… }}'];
+                const parentsOf = {};
+                this.edges.forEach((e) => {
+                    (parentsOf[e.to] = parentsOf[e.to] || []).push(e.from);
+                });
+                const seen = new Set();
+                const queue = (parentsOf[this.selectedNode.id] || []).slice();
+                while (queue.length) {
+                    const id = queue.shift();
+                    if (seen.has(id)) {
+                        continue;
+                    }
+                    seen.add(id);
+                    (parentsOf[id] || []).forEach((parent) => queue.push(parent));
+                    const node = this.nodeById[id];
+                    if (!node) {
+                        continue;
+                    }
+                    if (NODE_TYPES[node.type] && NODE_TYPES[node.type].cat === 'trigger') {
+                        // Le payload du déclencheur vit sous le contexte `trigger` (déjà listé).
+                        continue;
+                    }
+                    if (node.type === 'input') {
+                        const name = String(node.config.name || '').trim() || 'payload';
+                        paths.push(`{{ ${name}.… }}`);
+                        continue;
+                    }
+                    const outputKeys = AI_OUTPUT_KEYS[node.type];
+                    if (outputKeys) {
+                        outputKeys.forEach((outputKey) => paths.push(`{{ ${id}.${outputKey} }}`));
+                        continue;
+                    }
+                    paths.push(`{{ ${id}.… }}`);
+                }
+                return paths;
+            },
         },
         methods: {
             /* ---------- Thème (le builder n'utilise pas le shellMixin) ---------- */
@@ -223,6 +346,19 @@
             },
             toggleTheme() {
                 window.FauconUI.Theme.toggle();
+            },
+
+            /* ---------- Usage tokens des nodes IA ---------- */
+            aiUsageText(output) {
+                const usage = output && output.usage;
+                if (
+                    usage
+                    && typeof usage.prompt_tokens === 'number'
+                    && typeof usage.completion_tokens === 'number'
+                ) {
+                    return `Tokens : ${usage.prompt_tokens} prompt · ${usage.completion_tokens} réponse`;
+                }
+                return null;
             },
 
             /* ---------- Géométrie ---------- */
@@ -320,6 +456,26 @@
             removeEdge(id) {
                 this.edges = this.edges.filter((e) => e.id !== id);
             },
+            async copyWebhookUrl() {
+                try {
+                    await navigator.clipboard.writeText(this.webhookUrl);
+                    this.webhookCopied = true;
+                    setTimeout(() => {
+                        this.webhookCopied = false;
+                    }, 2000);
+                } catch (e) {
+                    this.$toast({ title: 'Copie impossible', type: 'error' });
+                }
+            },
+            regenerateWebhookToken() {
+                this.regenerateOpen = true;
+            },
+            confirmRegenerateWebhookToken() {
+                this.regenerateOpen = false;
+                /* App serveur : nouveau token + hash, l'ancienne URL meurt immédiatement */
+                this.webhookUrl = `https://faucon.app/webhooks/${Array.from({ length: 20 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+                this.$toast({ title: 'Token régénéré', description: 'L’ancienne URL n’est plus valide.', type: 'success' });
+            },
             addNode(type, world) {
                 const def = NODE_TYPES[type];
                 const node = {
@@ -329,7 +485,8 @@
                     x: world.x - NODE_W / 2,
                     y: world.y - NODE_H / 2,
                     status: 'idle',
-                    config: Object.fromEntries((def.fields || []).map((f) => [f.key, f.type === 'range' ? 0.5 : ''])),
+                    // Select initialisé sur sa première option (fake/demo pour le Modèle IA).
+                    config: Object.fromEntries((def.fields || []).map((f) => [f.key, f.type === 'select' ? (f.options && f.options[0] || '') : f.type === 'range' ? 0.5 : ''])),
                 };
                 this.nodes.push(node);
                 this.selectNode(node.id);
@@ -506,10 +663,41 @@
                 }, 800);
             },
 
-            /* ---------- Simulation d'exécution ---------- */
+            /* ---------- Test d'exécution (input d'échantillon + run simulé) ---------- */
+            openTest() {
+                if (this.running) {
+                    return;
+                }
+                this.validateTestJson();
+                this.testOpen = true;
+            },
+
+            validateTestJson() {
+                try {
+                    JSON.parse(this.testJson);
+                    this.testError = null;
+                } catch (e) {
+                    this.testError = `JSON invalide — ${e.message}`;
+                }
+            },
+
+            launchTest() {
+                if (this.testError || !this.testJson.trim()) {
+                    return;
+                }
+                this.testOpen = false;
+                this.runWorkflow();
+            },
+
             async runWorkflow() {
                 if (this.running) {
                     return;
+                }
+                let sampleKeys = 0;
+                try {
+                    sampleKeys = Object.keys(JSON.parse(this.testJson)).length;
+                } catch (e) {
+                    sampleKeys = 0;
                 }
                 this.running = true;
                 this.drawerOpen = true;
@@ -519,9 +707,9 @@
                     n.status = 'idle';
                 });
                 this.t0 = performance.now();
-                this.log('système', 'Validation du graphe… 5 nodes, 5 arêtes — OK', 'info');
+                this.log('système', `Validation du graphe… ${this.nodes.length} nodes, ${this.edges.length} arêtes — OK`, 'info');
                 await this.wait(420);
-                this.log('système', 'Exécution #exec-042 démarrée (déclencheur : webhook)', 'info');
+                this.log('système', `Test démarré — déclencheur : manuel, input d'échantillon (${sampleKeys} clés)`, 'info');
 
                 const order = this.topoOrder();
                 for (const node of order) {
@@ -550,16 +738,24 @@
                             }
                         }
                     }
-                    if (node.type === 'classification') {
-                        this.log(def.label, 'Sortie structurée : { label: "lead", confidence: 0.94 }', 'ok');
+                    if (node.type && node.type.indexOf('ai.') === 0) {
+                        const usage = `Tokens : ${120 + Math.floor(Math.random() * 90)} prompt · ${28 + Math.floor(Math.random() * 50)} réponse`;
+                        if (node.type === 'ai.classification') {
+                            this.log(def.label, 'Sortie structurée : { label: "lead" }', 'ok', usage);
+                        } else {
+                            this.log(def.label, 'Complétion reçue — sortie disponible pour les nodes suivants', 'ok', usage);
+                        }
+                    }
+                    if (node.type === 'output') {
+                        this.log(def.label, 'Résultat final exposé — fin du run', 'ok');
                     }
                     await this.wait(120);
                 }
                 const total = Math.round(performance.now() - this.t0);
                 this.runSummary = { ok: true, nodes: order.length, ms: total };
-                this.log('système', `Exécution terminée avec succès en ${(total / 1000).toFixed(1)} s`, 'ok');
+                this.log('système', `Test terminé avec succès en ${(total / 1000).toFixed(1)} s`, 'ok');
                 this.running = false;
-                this.$toast({ title: 'Exécution réussie', description: `${order.length} nodes · ${(total / 1000).toFixed(1)} s`, type: 'success' });
+                this.$toast({ title: 'Test réussi', description: `${order.length} nodes · ${(total / 1000).toFixed(1)} s`, type: 'success' });
             },
             topoOrder() {
                 // BFS depuis les déclencheurs
@@ -589,9 +785,13 @@
             wait(ms) {
                 return new Promise((resolve) => setTimeout(resolve, ms));
             },
-            log(node, msg, level) {
+            log(node, msg, level, usage) {
                 const t = ((performance.now() - this.t0) / 1000).toFixed(2);
-                this.logs.push({ t: `${t}s`, node, msg, level });
+                const entry = { t: `${t}s`, node, msg, level };
+                if (usage) {
+                    entry.usage = usage;
+                }
+                this.logs.push(entry);
                 this.$nextTick(() => {
                     const box = this.$refs.logs;
                     if (box) {

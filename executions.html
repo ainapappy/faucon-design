@@ -285,6 +285,14 @@
                         <ic name="loader-circle" :size="16"></ic>
                         <div><div class="alert-title">Exécution en cours</div>Cette vue se met à jour automatiquement.</div>
                     </div>
+                    <div class="alert alert-info" v-if="current.status === 'queued'" style="margin-bottom:18px;">
+                        <ic name="clock" :size="16"></ic>
+                        <div><div class="alert-title">En attente d'exécution</div>Le run est en file — il démarre dès qu'un worker est disponible.</div>
+                    </div>
+                    <div class="alert alert-warning" v-if="current.status === 'cancelled'" style="margin-bottom:18px;">
+                        <ic name="circle-slash" :size="16"></ic>
+                        <div><div class="alert-title">Exécution annulée</div>Arrêtée entre deux nodes à la demande d'un membre de l'équipe.</div>
+                    </div>
 
                     <!-- timeline des nodes -->
                     <p class="section-title">Parcours par node</p>
@@ -324,6 +332,12 @@
                     <button class="btn btn-ghost" @click="current = null">Fermer</button>
                     <button class="btn btn-primary" @click="retry">
                         <ic name="rotate-ccw" :size="14"></ic> Relancer l'exécution
+                    </button>
+                </div>
+                <div class="sheet-footer" v-else-if="current.status === 'running' || current.status === 'queued'">
+                    <button class="btn btn-ghost" @click="current = null">Fermer</button>
+                    <button class="btn btn-destructive" @click="cancelRun">
+                        <ic name="circle-slash" :size="14"></ic> Annuler l'exécution
                     </button>
                 </div>
             </div>
@@ -411,7 +425,7 @@
                         { id: '#exec-038', wf: 'Sync GitHub → canal #dev', trigger: 'Webhook', status: 'success', at: 'Aujourd’hui · 09:52', ms: 1930, nodes: 3, done: 3, detail: DETAIL_SUCCESS },
                         { id: '#exec-037', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'queued', at: 'Aujourd’hui · 09:41', ms: 0, nodes: 5, done: 0, detail: DETAIL_RUNNING },
                         { id: '#exec-036', wf: 'Veille concurrentielle IA', trigger: 'Cron', status: 'success', at: 'Hier · 11:47', ms: 3980, nodes: 4, done: 4, detail: DETAIL_SUCCESS },
-                        { id: '#exec-035', wf: 'Modération des formulaires', trigger: 'Webhook', status: 'success', at: 'Hier · 10:22', ms: 1120, nodes: 5, done: 5, detail: DETAIL_SUCCESS },
+                        { id: '#exec-035', wf: 'Modération des formulaires', trigger: 'Webhook', status: 'cancelled', at: 'Hier · 10:22', ms: 1120, nodes: 5, done: 2, detail: DETAIL_SUCCESS },
                     ],
                 };
             },
@@ -439,6 +453,7 @@
                         failed: { cls: 'badge-danger', icon: 'circle-x', label: 'Échec' },
                         running: { cls: 'badge-info', icon: 'loader-circle', label: 'En cours' },
                         queued: { cls: 'badge-secondary', icon: 'clock', label: 'En file' },
+                        cancelled: { cls: 'badge-outline', icon: 'circle-slash', label: 'Annulée' },
                     }[s];
                 },
                 open(run) {
@@ -448,6 +463,9 @@
                 retry() {
                     this.$toast({ title: 'Relance programmée', description: 'Tentative 2/3 dans quelques secondes…', type: 'info' });
                     this.current = null;
+                },
+                cancelRun() {
+                    this.$toast({ title: 'Annulation demandée', description: 'L’exécution s’arrêtera entre deux nodes.', type: 'info' });
                 },
                 refresh() {
                     this.refreshing = true;

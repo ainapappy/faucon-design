@@ -61,10 +61,10 @@
                     <button class="icon-btn" @click="toggleTheme" :aria-label="isDark() ? 'Thème clair' : 'Thème sombre'">
                         <ic :name="isDark() ? 'sun' : 'moon'" :size="16"></ic>
                     </button>
-                    <button class="btn btn-primary" @click="runWorkflow" :disabled="running">
+                    <button class="btn btn-primary" @click="openTest" :disabled="running">
                         <span v-if="running" class="spinner" style="border-top-color:currentColor;"></span>
                         <ic v-else name="play" :size="14"></ic>
-                        {{ running ? 'En cours…' : 'Exécuter' }}
+                        {{ running ? 'En cours…' : 'Tester' }}
                     </button>
                 </div>
             </header>
@@ -205,6 +205,10 @@
                                 <select v-if="f.type === 'select'" class="select" v-model="selectedNode.config[f.key]">
                                     <option v-for="o in f.options" :key="o" :value="o">{{ o }}</option>
                                 </select>
+                                <select v-else-if="f.type === 'integration'" class="select" v-model="selectedNode.config[f.key]">
+                                    <option value="">— Aucune —</option>
+                                    <option v-for="i in integrations" :key="i.id" :value="String(i.id)">{{ i.name }}</option>
+                                </select>
                                 <textarea v-else-if="f.type === 'textarea'" class="textarea" :class="{ 'text-mono': f.mono }"
                                           v-model="selectedNode.config[f.key]" :placeholder="f.placeholder" rows="3"></textarea>
                                 <div v-else-if="f.type === 'range'" class="range-row">
@@ -216,6 +220,46 @@
                                        v-model="selectedNode.config[f.key]" :placeholder="f.placeholder">
                             </div>
 
+                            <!-- ================= Section webhook (type dédié) ================= -->
+                            <template v-if="selectedNode.type === 'webhook'">
+                                <div class="separator"></div>
+                                <div class="field">
+                                    <label class="label">URL publique</label>
+                                    <div class="input-wrap">
+                                        <ic name="webhook" :size="15"></ic>
+                                        <input class="input text-mono" style="font-size:12px;" :value="webhookUrl" readonly>
+                                        <button type="button" class="input-trailing" @click="copyWebhookUrl" :aria-label="webhookCopied ? 'Copié' : 'Copier'">
+                                            <ic :name="webhookCopied ? 'check' : 'copy'" :size="15"></ic>
+                                        </button>
+                                    </div>
+                                    <p class="field-hint">Envoyez vos requêtes en <span class="text-mono">POST</span> vers cette URL pour déclencher le workflow.</p>
+                                </div>
+                                <button class="btn btn-outline btn-sm" style="width:100%;" @click="regenerateWebhookToken">
+                                    <ic name="refresh-cw" :size="14"></ic> Régénérer le token
+                                </button>
+                                <div class="alert alert-info" style="margin-top:12px;">
+                                    <ic name="info" :size="15"></ic>
+                                    <div>Ajoutez un header <span class="text-mono" v-pre>X-Request-Id</span> : la même valeur ne déclenchera qu’une seule exécution (fenêtre de 24 h).</div>
+                                </div>
+                            </template>
+
+                            <!-- ================= Section IA (aide-mémoire variables + hints du mode) ================= -->
+                            <template v-if="selectedType.cat === 'ai'">
+                                <div class="separator"></div>
+                                <button type="button" class="cheat-toggle" :aria-expanded="aiCheatOpen" @click="aiCheatOpen = !aiCheatOpen">
+                                    <ic :name="aiCheatOpen ? 'chevron-down' : 'chevron-right'" :size="14"></ic>
+                                    Variables disponibles
+                                </button>
+                                <div class="ai-cheatsheet" v-if="aiCheatOpen">
+                                    <p class="cheat-line" v-for="(path, i) in upstreamVariables" :key="i">
+                                        <span class="text-mono">{{ path }}</span>
+                                    </p>
+                                    <p class="cheat-note">Chaque node IA expose aussi <span class="text-mono">usage.prompt_tokens</span> et <span class="text-mono">usage.completion_tokens</span>.</p>
+                                </div>
+                                <p class="field-hint" v-if="selectedNode.type === 'ai.classification'">Séparez les étiquettes par des virgules — le modèle en choisit exactement une.</p>
+                                <p class="field-hint" v-if="selectedNode.type === 'ai.extraction'">Une ligne par champ, au format « clé: type » — types admis : text, number, boolean.</p>
+                            </template>
+
                             <div class="separator"></div>
                             <button class="btn btn-destructive btn-sm" style="width:100%;" @click="deleteSelected">
                                 <ic name="trash-2" :size="14"></ic> Supprimer ce node
@@ -225,6 +269,12 @@
                         <div class="inspector-body" v-else>
                             <p class="field-hint">Aperçu issu de la dernière exécution de test.</p>
                             <div class="json-block" v-html="jsonHtml(exampleFor(selectedType.cat))"></div>
+                            <!-- Usage tokens des nodes IA (clé usage de la sortie) -->
+                            <div class="usage-row" v-if="selectedType.cat === 'ai' && aiUsageText(exampleFor(selectedType.cat))">
+                                <span class="badge badge-outline usage-badge">
+                                    <ic name="coins" :size="11"></ic> {{ aiUsageText(exampleFor(selectedType.cat)) }}
+                                </span>
+                            </div>
                             <div class="alert alert-info" style="font-size:12.5px;">
                                 <ic name="braces" :size="14"></ic>
                                 <div>Référencez ces valeurs avec <span class="text-mono" v-pre>{{ node.variable }}</span> dans les nodes suivants.</div>
@@ -274,9 +324,13 @@
                             <time>{{ l.t }}</time>
                             <span class="log-node">{{ l.node }}</span>
                             <span class="log-msg" :class="l.level">{{ l.msg }}</span>
+                            <!-- Usage tokens des nodes IA -->
+                            <span class="badge badge-outline usage-badge" v-if="l.usage">
+                                <ic name="coins" :size="11"></ic> {{ l.usage }}
+                            </span>
                         </p>
                         <p v-if="!logs.length" class="text-muted" style="font-family:var(--font-sans); padding:6px 0;">
-                            Lancez <b>Exécuter</b> pour tester le graphe node par node.
+                            Lancez <b>Tester</b> pour exécuter le graphe node par node avec un input d'échantillon.
                         </p>
                     </div>
                     <div class="exec-summary" v-if="runSummary && !running">
@@ -285,6 +339,62 @@
                         <a class="btn btn-ghost btn-sm" href="executions.html" style="margin-left:auto;">Voir l'exécution complète <ic name="arrow-up-right" :size="13"></ic></a>
                     </div>
                 </div>
+
+                <!-- ================= Dialog : tester le workflow ================= -->
+                <transition name="fade">
+                    <div class="overlay" v-if="testOpen" @click="testOpen = false"></div>
+                </transition>
+                <transition name="zoom">
+                    <div class="dialog" v-if="testOpen" role="dialog" aria-label="Tester le workflow">
+                        <button class="dialog-close" @click="testOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                        <div class="dialog-title">Tester le workflow</div>
+                        <p class="dialog-description">Lance un test réel du graphe avec l'input ci-dessous — aucune action externe n'est déclenchée.</p>
+
+                        <div style="display:grid; gap:15px; margin-top:20px;">
+                            <div class="field">
+                                <label class="label" for="test-input">Input d'échantillon (JSON)</label>
+                                <textarea id="test-input" class="textarea" rows="8" v-model="testJson" @input="validateTestJson"
+                                          spellcheck="false" aria-label="Input d'échantillon JSON"
+                                          style="font-family:var(--font-mono); font-size:12.5px; line-height:1.6;"
+                                          placeholder='{ "email": "client@example.com" }'></textarea>
+                                <p class="field-error" v-if="testError">{{ testError }}</p>
+                                <p class="field-hint" v-else>
+                                    Disponible dans le contexte via <code v-pre>{{ trigger.* }}</code> — ex. <code v-pre>{{ trigger.email }}</code>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="dialog-footer">
+                            <button class="btn btn-ghost" @click="testOpen = false">Annuler</button>
+                            <button class="btn btn-primary" :disabled="!testJson.trim() || !!testError" @click="launchTest">
+                                <ic name="play" :size="15"></ic>
+                                Lancer le test
+                            </button>
+                        </div>
+                    </div>
+                </transition>
+
+                <!-- ================= Dialog : régénérer le token webhook ================= -->
+                <transition name="fade">
+                    <div class="overlay" v-if="regenerateOpen" @click="regenerateOpen = false"></div>
+                </transition>
+                <transition name="zoom">
+                    <div class="dialog" v-if="regenerateOpen" role="dialog" aria-label="Régénérer le token">
+                        <button class="dialog-close" @click="regenerateOpen = false" aria-label="Fermer"><ic name="x" :size="15"></ic></button>
+                        <div class="dialog-title">Régénérer le token</div>
+                        <p class="dialog-description">Une nouvelle URL sera générée. L'URL actuelle cessera de fonctionner immédiatement — pensez à mettre à jour les systèmes qui l'appellent.</p>
+                        <div class="alert alert-warning" style="margin-top:16px;">
+                            <ic name="triangle-alert" :size="15"></ic>
+                            <div>Cette action est irréversible.</div>
+                        </div>
+                        <div class="dialog-footer">
+                            <button class="btn btn-ghost" @click="regenerateOpen = false">Annuler</button>
+                            <button class="btn btn-destructive" @click="confirmRegenerateWebhookToken">
+                                <ic name="refresh-cw" :size="14"></ic> Régénérer
+                            </button>
+                        </div>
+                    </div>
+                </transition>
             </div>
         </div>
     </div>

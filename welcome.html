@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faucon — L'automatisation, sans effort</title>
+    <meta name="description" content="Faucon — AI Workflow Hub. Créez visuellement des workflows propulsés par l'IA, exécutez-les à l'échelle, observez chaque exécution node par node.">
+    <meta name="author" content="Ainatrix — ainatrix.com">
+    <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+    <script>
+        /* applique le thème avant le premier rendu (anti-flash) */
+        try {
+            var t = localStorage.getItem('faucon-theme');
+            if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/app.css">
+    <style>
+        /* ============================================================
+           Faucon — Landing « welcome » (one page, bento, animé)
+           Maquette marketing : hero + exécution en direct + bento
+           fonctionnalités + CTA. Animations pilotées par Vue 3.
+           ============================================================ */
+
+        [v-cloak] { display: none; }
+
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+        /* ---------------- En-tête ---------------- */
+        .site-header {
+            position: sticky; top: 0; z-index: 50;
+            background: color-mix(in srgb, var(--background) 82%, transparent);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid transparent;
+            transition: border-color .3s ease, box-shadow .3s ease;
+        }
+        .site-header.scrolled { border-bottom-color: var(--border); box-shadow: var(--shadow-sm); }
+        .header-inner { display: flex; align-items: center; gap: 20px; height: 62px; }
+        .site-header .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+        .site-header .brand img { width: 26px; height: 26px; }
+        .header-nav { display: flex; gap: 2px; margin-left: 10px; }
+        .header-nav a {
+            padding: 7px 12px; border-radius: var(--r-sm);
+            font-size: 13.5px; color: var(--muted-foreground);
+            transition: color .2s, background .2s;
+        }
+        .header-nav a:hover { color: var(--foreground); background: var(--accent); }
+        .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+        /* ---------------- Héros ---------------- */
+        .hero { position: relative; overflow: hidden; padding: 84px 0 24px; text-align: center; }
+        .hero-glow {
+            position: absolute; top: -260px; left: 50%; transform: translateX(-50%);
+            width: 1100px; height: 640px; pointer-events: none;
+            background:
+                radial-gradient(520px 300px at 38% 30%, var(--brand-soft), transparent 70%),
+                radial-gradient(480px 280px at 62% 22%, color-mix(in srgb, var(--cat-3) 9%, transparent), transparent 70%);
+        }
+        .hero > .wrap { position: relative; }
+        .hero h1 {
+            font-size: clamp(34px, 5.4vw, 56px);
+            font-weight: 700; letter-spacing: -0.035em; line-height: 1.06;
+            max-width: 18ch; margin: 20px auto 16px;
+        }
+        .grad-text {
+            background: var(--brand-gradient);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .word { display: inline-grid; vertical-align: bottom; text-align: left; }
+        .word > span { grid-area: 1 / 1; white-space: nowrap; }
+        .word-enter-active, .word-leave-active { transition: opacity .38s ease, transform .48s cubic-bezier(.22,.9,.3,1.15); }
+        .word-enter-from { opacity: 0; transform: translateY(55%); }
+        .word-leave-to { opacity: 0; transform: translateY(-55%); }
+        .hero-sub {
+            font-size: 17px; line-height: 1.65; color: var(--muted-foreground);
+            max-width: 56ch; margin: 0 auto 28px;
+        }
+        .hero-ctas { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .hero-proof {
+            display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
+            margin-top: 16px; font-size: 12.5px; color: var(--muted-foreground);
+        }
+        .hero-proof span { display: inline-flex; align-items: center; gap: 6px; }
+        .hero-proof .ic { color: var(--success); }
+
+        /* ---------------- Chiffres clés ---------------- */
+        .stats {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            max-width: 880px; margin: 52px auto 0;
+        }
+        .stat { padding: 4px 18px; text-align: center; }
+        .stat:not(:first-child) { border-left: 1px solid var(--border); }
+        .stat b { display: block; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+        .stat span { font-size: 12.5px; color: var(--muted-foreground); }
+
+        /* ---------------- Démo : exécution en direct ---------------- */
+        .demo-card { max-width: 880px; margin: 52px auto 0; padding: 0; overflow: hidden; text-align: left; }
+        .demo-head {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 13px;
+        }
+        .demo-head .spacer { margin-left: auto; }
+        .wf-scroll { overflow-x: auto; scrollbar-width: thin; }
+        .wf-canvas { position: relative; min-width: 640px; aspect-ratio: 660 / 280; }
+        .wf-canvas > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+        .edge { fill: none; stroke: var(--border); stroke-width: 2; transition: stroke .3s; }
+        .edge.is-done { stroke: color-mix(in srgb, var(--edge-color, var(--brand)) 38%, var(--border)); }
+        .edge.is-live {
+            stroke: var(--edge-color, var(--brand));
+            stroke-dasharray: 7 5;
+            animation: edge-march .45s linear infinite;
+        }
+        @keyframes edge-march { to { stroke-dashoffset: -12; } }
+        .wf-dot { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--brand) 60%, transparent)); }
+        .wf-node {
+            position: absolute; display: flex; align-items: center; gap: 9px;
+            padding: 0 13px; height: 58px;
+            background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: var(--shadow-xs); text-align: left;
+            transition: opacity .35s, border-color .3s, box-shadow .3s;
+        }
+        .wf-node .n-icon { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; }
+        .wf-node .n-meta { min-width: 0; }
+        .wf-node b { display: block; font-size: 13px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wf-node small { display: block; font-size: 10.5px; color: var(--muted-foreground); font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wf-node .n-state { margin-left: auto; color: var(--muted-foreground); }
+        .wf-node.pending { opacity: .45; }
+        .wf-node.running {
+            border-color: var(--node-color);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--node-color) 14%, transparent);
+        }
+        .wf-node.running .n-state { color: var(--node-color); }
+        .wf-node.running .n-state .ic { animation: spin 1s linear infinite; }
+        .wf-node.done .n-state { color: var(--success); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .wf-tag {
+            position: absolute; display: inline-flex; align-items: center; gap: 5px;
+            padding: 2px 8px; border-radius: var(--r-full);
+            background: var(--card); border: 1px solid var(--border);
+            font-size: 10px; font-family: var(--font-mono); color: var(--muted-foreground);
+            box-shadow: var(--shadow-xs);
+        }
+        .wf-tag i { width: 6px; height: 6px; border-radius: 50%; }
+        .wf-tag.on { color: var(--foreground); border-color: color-mix(in srgb, var(--tag-color) 45%, var(--border)); }
+        .wf-foot {
+            display: flex; align-items: center; gap: 12px; min-height: 47px;
+            padding: 10px 18px; border-top: 1px solid var(--border);
+            background: color-mix(in srgb, var(--secondary) 45%, transparent);
+            font-size: 12.5px;
+        }
+        .wf-log { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .wf-log .ok { color: var(--success); }
+        .fade-enter-active, .fade-leave-active { transition: opacity .25s ease, transform .25s ease; }
+        .fade-enter-from { opacity: 0; transform: translateY(4px); }
+        .fade-leave-to { opacity: 0; transform: translateY(-4px); }
+
+        /* ---------------- Bento fonctionnalités ---------------- */
+        .bento-section { padding: 84px 0 8px; }
+        .section-head { max-width: 620px; margin: 0 auto 38px; text-align: center; }
+        .eyebrow {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 13px; border-radius: var(--r-full);
+            background: var(--brand-soft); color: var(--brand-ink);
+            font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+        }
+        .section-head h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 700; letter-spacing: -0.03em; margin: 16px 0 10px; }
+        .section-head p { font-size: 15px; color: var(--muted-foreground); line-height: 1.6; }
+        .bento { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+        .bento > .reveal { display: flex; }
+        .b-card {
+            position: relative; display: flex; flex-direction: column; gap: 10px;
+            width: 100%; padding: 22px; overflow: hidden;
+            transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s, border-color .25s;
+        }
+        .b-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-pop); }
+        .b-span2 { grid-column: span 2; }
+        .b-span4 { grid-column: span 4; }
+        .b-icon { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; }
+        .b-card h3 { font-size: 16px; font-weight: 650; }
+        .b-card p { font-size: 13.5px; line-height: 1.55; color: var(--muted-foreground); }
+        .b-visual { margin-top: auto; }
+
+        /* mini-graphe décoratif (carte éditeur) */
+        .deco-svg { width: 100%; height: auto; }
+        .deco-node { animation: float-y 5s ease-in-out infinite; }
+        .deco-node:nth-child(2) { animation-delay: -1.4s; }
+        .deco-node:nth-child(3) { animation-delay: -2.6s; }
+        .deco-node:nth-child(4) { animation-delay: -3.8s; }
+        @keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+        .mini-chip {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 11px; border-radius: var(--r-full);
+            border: 1px solid var(--border); background: var(--card);
+            font-size: 11.5px; font-weight: 500; white-space: nowrap;
+        }
+        .mini-chip i { width: 8px; height: 8px; border-radius: 50%; }
+        .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+        .code-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 7px 12px; border-radius: var(--r-sm);
+            background: var(--secondary); border: 1px solid var(--border);
+            font-family: var(--font-mono); font-size: 11.5px;
+        }
+        .code-pill .method { color: var(--success); font-weight: 600; }
+
+        .avatar-stack { display: flex; }
+        .avatar-stack .avatar { border: 2px solid var(--card); }
+        .avatar-stack .avatar + .avatar { margin-left: -9px; }
+
+        /* carte observabilité : graphe + flux live */
+        .live-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; align-items: end; }
+        .live-chart-wrap { min-width: 0; }
+        .live-chart-wrap .chart-caption { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted-foreground); margin-top: 6px; font-family: var(--font-mono); }
+        .chart-line { stroke-dasharray: 620; stroke-dashoffset: 620; transition: stroke-dashoffset 1.4s cubic-bezier(.3,.7,.3,1) .15s; }
+        .drawn .chart-line { stroke-dashoffset: 0; }
+        .chart-area { opacity: 0; transition: opacity .8s ease .9s; }
+        .drawn .chart-area { opacity: 1; }
+        .feed { display: flex; flex-direction: column; gap: 7px; }
+        .feed-item {
+            display: flex; align-items: center; gap: 9px;
+            padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--r-md);
+            background: var(--card); font-size: 12.5px;
+        }
+        .feed-item .f-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .feed-item .f-time { font-size: 10.5px; color: var(--muted-foreground); font-family: var(--font-mono); flex: none; }
+        .feed-enter-active { transition: opacity .4s ease, transform .4s cubic-bezier(.2,.8,.2,1); }
+        .feed-enter-from { opacity: 0; transform: translateY(-10px); }
+        .feed-leave-active { transition: opacity .3s ease, transform .3s ease; position: absolute; width: 100%; }
+        .feed-leave-to { opacity: 0; transform: translateY(8px); }
+        .feed-move { transition: transform .45s cubic-bezier(.2,.8,.2,1); }
+
+        /* bandeau templates */
+        .tpl-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .tpl-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 13px; font-weight: 600; color: var(--brand-ink); white-space: nowrap;
+        }
+        .tpl-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+        /* ---------------- CTA final ---------------- */
+        .cta-section { padding: 88px 0 0; }
+        .cta-panel {
+            position: relative; overflow: hidden; text-align: center;
+            padding: clamp(40px, 6vw, 64px) 28px; border-radius: 24px;
+            background: var(--brand-gradient); color: var(--brand-foreground);
+            box-shadow: var(--shadow-pop);
+        }
+        .cta-panel::before, .cta-panel::after {
+            content: ""; position: absolute; border-radius: 50%; pointer-events: none;
+            background: radial-gradient(closest-side, hsl(0 0% 100% / 0.28), transparent);
+            animation: glow-drift 9s ease-in-out infinite;
+        }
+        .cta-panel::before { width: 420px; height: 420px; top: -220px; left: -120px; }
+        .cta-panel::after { width: 380px; height: 380px; bottom: -220px; right: -100px; animation-delay: -4.5s; }
+        @keyframes glow-drift { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(26px, 14px); } }
+        .cta-panel h2 { font-size: clamp(26px, 3.6vw, 38px); font-weight: 700; letter-spacing: -0.03em; position: relative; }
+        .cta-panel p { position: relative; margin: 12px auto 26px; max-width: 46ch; font-size: 15px; opacity: .85; }
+        .cta-actions { position: relative; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .btn-cta {
+            background: hsl(0 0% 100%); color: hsl(26 83% 12%);
+            box-shadow: 0 8px 22px -8px hsl(26 83% 8% / 0.55);
+        }
+        .btn-cta:hover { background: hsl(0 0% 96%); }
+        .btn-cta-ghost { border: 1px solid hsl(26 83% 12% / 0.35); color: inherit; }
+        .btn-cta-ghost:hover { background: hsl(26 83% 12% / 0.08); }
+
+        /* ---------------- Pied de page ---------------- */
+        .site-footer { margin-top: 88px; border-top: 1px solid var(--border); padding: 44px 0 28px; }
+        .footer-grid { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1.2fr; gap: 28px; }
+        .footer-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+        .footer-brand img { width: 24px; height: 24px; }
+        .footer-col h4 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); margin-bottom: 12px; }
+        .footer-col a { display: block; padding: 4px 0; font-size: 13.5px; color: var(--muted-foreground); transition: color .2s; }
+        .footer-col a:hover { color: var(--foreground); }
+        .footer-bottom {
+            display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border);
+            font-size: 12.5px; color: var(--muted-foreground);
+        }
+        .ainatrix {
+            display: inline-flex; align-items: center; gap: 7px; margin-left: auto;
+            font-weight: 600; color: var(--foreground);
+        }
+        .ainatrix .ic { color: var(--brand); }
+        .ainatrix:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+        /* ---------------- Reveal au scroll ---------------- */
+        .reveal { opacity: 0; transform: translateY(20px); transition: opacity .55s ease, transform .65s cubic-bezier(.16,.84,.3,1); will-change: opacity, transform; }
+        .reveal.revealed { opacity: 1; transform: none; }
+
+        /* ---------------- Responsive ---------------- */
+        @media (max-width: 960px) {
+            .bento { grid-template-columns: repeat(2, 1fr); }
+            .b-span4 { grid-column: span 2; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .live-grid { grid-template-columns: 1fr; align-items: stretch; }
+        }
+        @media (max-width: 760px) {
+            .header-nav { display: none; }
+            .stats { grid-template-columns: repeat(2, 1fr); gap: 20px 0; }
+            .stat:nth-child(3) { border-left: none; }
+            .hero { padding-top: 56px; }
+        }
+        @media (max-width: 620px) {
+            .bento { grid-template-columns: 1fr; }
+            .b-span2, .b-span4 { grid-column: auto; }
+            .footer-grid { grid-template-columns: 1fr; gap: 20px; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .stat { border-left: none !important; }
+        }
+
+        /* ---------------- Mouvement réduit ---------------- */
+        @media (prefers-reduced-motion: reduce) {
+            .reveal { opacity: 1; transform: none; transition: none; }
+            .anim-in, .anim-pop { animation: none; }
+            .deco-node, .edge.is-live, .wf-node.running .n-state .ic,
+            .cta-panel::before, .cta-panel::after { animation: none; }
+            .word-enter-active, .word-leave-active,
+            .fade-enter-active, .fade-leave-active,
+            .feed-enter-active, .feed-leave-active, .feed-move { transition: none; }
+        }
+    </style>
+</head>
+<body>
+<div id="app" v-cloak>
+    <!-- ================= En-tête ================= -->
+    <header class="site-header" :class="{ scrolled }">
+        <div class="wrap header-inner">
+            <a class="brand" href="welcome.html">
+                <img src="img/logo.svg" alt="Faucon">
+                Faucon
+            </a>
+            <nav class="header-nav">
+                <a href="#fonctionnalites">Fonctionnalités</a>
+                <a href="#demo">Démo</a>
+                <a href="templates.html">Templates</a>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-ghost btn-icon" @click="toggleTheme" :aria-label="dark ? 'Thème clair' : 'Thème sombre'">
+                    <ic :name="dark ? 'sun' : 'moon'" :size="17"></ic>
+                </button>
+                <a class="btn btn-ghost btn-sm" href="login.html">Se connecter</a>
+                <a class="btn btn-primary btn-sm" href="register.html">Commencer</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- ================= Héros ================= -->
+        <section class="hero">
+            <div class="hero-glow" aria-hidden="true"></div>
+            <div class="wrap">
+                <span class="badge badge-brand anim-in">
+                    <ic name="sparkles" :size="13" style="margin-right:6px;"></ic>
+                    Propulsé par l'IA — nodes OpenAI &amp; Anthropic
+                </span>
+                <h1 class="anim-in d-1">
+                    L'automatisation,
+                    <span class="word"><transition name="word"><span :key="wordIndex" class="grad-text">{{ words[wordIndex] }}</span></transition></span>
+                </h1>
+                <p class="hero-sub anim-in d-2">
+                    Faucon relie vos outils, exécute vos tâches répétitives et vous tient informé.
+                    Des workflows visuels, observables node par node, sécurisés par défaut.
+                </p>
+                <div class="hero-ctas anim-in d-3">
+                    <a class="btn btn-primary btn-lg" href="register.html">
+                        Créer mon premier workflow <ic name="arrow-right" :size="16"></ic>
+                    </a>
+                    <a class="btn btn-outline btn-lg" href="dashboard.html">
+                        Voir la démo <ic name="external-link" :size="15"></ic>
+                    </a>
+                </div>
+                <div class="hero-proof anim-in d-4">
+                    <span><ic name="circle-check" :size="14"></ic> Gratuit pour commencer</span>
+                    <span><ic name="circle-check" :size="14"></ic> Sans carte bancaire</span>
+                    <span><ic name="circle-check" :size="14"></ic> 2 minutes chrono</span>
+                </div>
+
+                <div class="stats anim-in d-5">
+                    <div class="stat"><b>{{ $fmt.number(stats.nodes) }}+</b><span>types de nodes</span></div>
+                    <div class="stat"><b>{{ $fmt.number(stats.tpl) }}+</b><span>templates prêts</span></div>
+                    <div class="stat"><b>{{ $fmt.number(stats.avg) }} s</b><span>exécution moyenne</span></div>
+                    <div class="stat"><b>{{ $fmt.number(stats.logs) }} %</b><span>d'exécutions tracées</span></div>
+                </div>
+
+                <!-- Démo : exécution animée en direct -->
+                <div id="demo" class="card demo-card anim-in d-6" v-reveal>
+                    <div class="demo-head">
+                        <span class="live-dot"></span>
+                        <b>Exécution en direct</b>
+                        <span class="badge badge-outline text-mono" style="font-size:10.5px;">wf_lead_capture</span>
+                        <span class="spacer"></span>
+                        <transition name="fade" mode="out-in">
+                            <span v-if="!runOk" key="run" class="badge badge-info">
+                                <ic name="loader-circle" :size="12" style="animation:spin 1s linear infinite;margin-right:5px;"></ic> En cours
+                            </span>
+                            <span v-else key="ok" class="badge badge-success">
+                                <ic name="circle-check" :size="12" style="margin-right:5px;"></ic> Succès · {{ runDuration }}
+                            </span>
+                        </transition>
+                    </div>
+
+                    <div class="wf-scroll">
+                        <div class="wf-canvas">
+                            <!-- edges + paquet voyageant -->
+                            <svg viewBox="0 0 660 280" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                                <path v-for="(e, key) in edges" :key="key" class="edge"
+                                      :class="'is-' + edgeState[key]"
+                                      :style="{ '--edge-color': e.color }"
+                                      :d="e.d"></path>
+                                <circle v-if="dot.on" class="wf-dot" :cx="dot.x" :cy="dot.y" r="4.5" fill="var(--brand)"></circle>
+                            </svg>
+
+                            <!-- nodes -->
+                            <div v-for="n in demoNodes" :key="n.id" class="wf-node"
+                                 :class="nodeState[n.id]"
+                                 :style="{ left: pct(n.x, 660), top: pct(n.y, 280), width: pct(n.w, 660), height: pct(n.h, 280), '--node-color': n.color }">
+                                <span class="n-icon" :style="{ background: 'color-mix(in srgb, ' + n.color + ' 13%, transparent)', color: n.color }">
+                                    <ic :name="n.icon" :size="15"></ic>
+                                </span>
+                                <span class="n-meta">
+                                    <b>{{ n.label }}</b>
+                                    <small>{{ n.sub }}</small>
+                                </span>
+                                <span class="n-state">
+                                    <ic v-if="nodeState[n.id] === 'running'" name="loader-circle" :size="14"></ic>
+                                    <ic v-else-if="nodeState[n.id] === 'done'" name="circle-check" :size="14"></ic>
+                                    <ic v-else name="clock" :size="13"></ic>
+                                </span>
+                            </div>
+
+                            <!-- étiquettes de branches -->
+                            <span class="wf-tag" :class="{ on: edgeState.ce !== 'idle' }"
+                                  style="left: 57.5%; top: 49.8%; --tag-color: var(--cat-2);"><i style="background: var(--cat-2);"></i>autre</span>
+                            <span class="wf-tag" :class="{ on: edgeState.cd !== 'idle' }"
+                                  style="left: 78.6%; top: 56.2%; --tag-color: var(--cat-4);"><i style="background: var(--cat-4);"></i>lead</span>
+                        </div>
+                    </div>
+
+                    <div class="wf-foot">
+                        <transition name="fade" mode="out-in">
+                            <span class="wf-log" :key="logIndex">
+                                <template v-if="logDone"><span class="ok">✓</span> {{ currentLog }}</template>
+                                <template v-else><span class="text-muted">→</span> {{ currentLog }}</template>
+                            </span>
+                        </transition>
+                        <span class="badge badge-secondary text-mono" style="font-size:10px; flex:none;">node · durée · sortie</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= Bento fonctionnalités ================= -->
+        <section id="fonctionnalites" class="bento-section">
+            <div class="wrap">
+                <div class="section-head" v-reveal>
+                    <span class="eyebrow"><ic name="zap" :size="13"></ic> Fonctionnalités</span>
+                    <h2>Tout ce qu'il faut. Rien de superflu.</h2>
+                    <p>Un hub complet pour construire, exécuter et superviser vos automatisations — sans multiplier les outils.</p>
+                </div>
+
+                <div class="bento">
+                    <!-- Éditeur visuel (large) -->
+                    <div class="b-span2" v-reveal="0">
+                        <div class="card b-card">
+                            <span class="b-icon" style="background: var(--brand-soft); color: var(--brand-ink);"><ic name="git-branch" :size="18"></ic></span>
+                            <h3>Éditeur visuel</h3>
+                            <p>Glissez des nodes, reliez-les, publiez. Graphe interactif, inspecteur, sauvegarde transactionnelle — aucune ligne de code.</p>
+                            <div class="b-visual">
+                                <svg class="deco-svg" viewBox="0 0 320 92" aria-hidden="true">
+                                    <path d="M64 24 H110" stroke="var(--border)" stroke-width="2" fill="none"></path>
+                                    <path d="M162 24 H208" stroke="var(--border)" stroke-width="2" fill="none" stroke-dasharray="5 4"></path>
+                                    <path d="M136 42 V64 H240" stroke="var(--border)" stroke-width="2" fill="none"></path>
+                                    <g class="deco-node">
+                                        <rect x="14" y="8" width="50" height="30" rx="9" fill="color-mix(in srgb, var(--cat-1) 13%, var(--card))" stroke="var(--cat-1)" stroke-width="1.5"></rect>
+                                        <circle cx="29" cy="23" r="4" fill="var(--cat-1)"></circle>
+                                        <rect x="38" y="20" width="20" height="5" rx="2.5" fill="var(--foreground)" opacity=".35"></rect>
+                                    </g>
+                                    <g class="deco-node">
+                                        <rect x="110" y="8" width="52" height="30" rx="9" fill="color-mix(in srgb, var(--cat-3) 13%, var(--card))" stroke="var(--cat-3)" stroke-width="1.5"></rect>
+                                        <circle cx="125" cy="23" r="4" fill="var(--cat-3)"></circle>
+                                        <rect x="134" y="20" width="22" height="5" rx="2.5" fill="var(--foreground)" opacity=".35"></rect>
+                                    </g>
+                                    <g class="deco-node">
+                                        <rect x="208" y="8" width="52" height="30" rx="9" fill="color-mix(in srgb, var(--cat-5) 13%, var(--card))" stroke="var(--cat-5)" stroke-width="1.5"></rect>
+                                        <circle cx="223" cy="23" r="4" fill="var(--cat-5)"></circle>
+                                        <rect x="232" y="20" width="22" height="5" rx="2.5" fill="var(--foreground)" opacity=".35"></rect>
+                                    </g>
+                                    <g class="deco-node">
+                                        <rect x="240" y="52" width="52" height="30" rx="9" fill="color-mix(in srgb, var(--cat-4) 13%, var(--card))" stroke="var(--cat-4)" stroke-width="1.5"></rect>
+                                        <circle cx="255" cy="67" r="4" fill="var(--cat-4)"></circle>
+                                        <rect x="264" y="64" width="22" height="5" rx="2.5" fill="var(--foreground)" opacity=".35"></rect>
+                                    </g>
+                                </svg>
+                                <div class="chip-row" style="margin-top:12px;">
+                                    <span class="mini-chip"><i style="background:var(--cat-1)"></i>Déclencheurs</span>
+                                    <span class="mini-chip"><i style="background:var(--cat-2)"></i>Données</span>
+                                    <span class="mini-chip"><i style="background:var(--cat-3)"></i>IA</span>
+                                    <span class="mini-chip"><i style="background:var(--cat-4)"></i>Actions</span>
+                                    <span class="mini-chip"><i style="background:var(--cat-5)"></i>Logique</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IA multi-providers -->
+                    <div v-reveal="70">
+                        <div class="card b-card">
+                            <span class="b-icon" style="background: color-mix(in srgb, var(--cat-3) 12%, transparent); color: var(--cat-3);"><ic name="sparkles" :size="18"></ic></span>
+                            <h3>IA multi-providers</h3>
+                            <p>OpenAI ou Anthropic en un réglage. Réponses structurées validées, retry automatique, usage en tokens.</p>
+                            <div class="b-visual chip-row">
+                                <span class="mini-chip"><i style="background:var(--cat-3)"></i>OpenAI</span>
+                                <span class="mini-chip"><i style="background:var(--cat-3)"></i>Anthropic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Webhooks -->
+                    <div v-reveal="140">
+                        <div class="card b-card">
+                            <span class="b-icon" style="background: color-mix(in srgb, var(--cat-2) 12%, transparent); color: var(--cat-2);"><ic name="webhook" :size="18"></ic></span>
+                            <h3>Webhooks publics</h3>
+                            <p>Chaque workflow devient une URL. Idempotent, rate-limité, prêt pour vos formulaires et vos CRM.</p>
+                            <div class="b-visual">
+                                <span class="code-pill"><span class="method">202</span> POST /hooks/lead-capture</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sécurité -->
+                    <div v-reveal="0">
+                        <div class="card b-card">
+                            <span class="b-icon" style="background: var(--success-soft); color: var(--success);"><ic name="shield-check" :size="18"></ic></span>
+                            <h3>Sécurisé par défaut</h3>
+                            <p>Credentials chiffrés, secrets masqués dans les logs, 2FA &amp; passkeys, garde-fous SSRF.</p>
+                            <div class="b-visual chip-row">
+                                <span class="mini-chip"><ic name="lock" :size="11"></ic>AES chiffré</span>
+                                <span class="mini-chip"><ic name="key-round" :size="11"></ic>Passkeys</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Observabilité live (large) -->
+                    <div class="b-span2" v-reveal="70">
+                        <div class="card b-card" :class="{ drawn: chartDrawn }" ref="livecard">
+                            <span class="b-icon" style="background: color-mix(in srgb, var(--cat-4) 12%, transparent); color: var(--cat-4);"><ic name="activity" :size="18"></ic></span>
+                            <h3>Observabilité en direct</h3>
+                            <p>Chaque exécution est tracée node par node : durées, entrées / sorties, erreurs explicites.</p>
+                            <div class="b-visual live-grid">
+                                <div class="live-chart-wrap">
+                                    <svg viewBox="0 0 260 72" width="100%" aria-hidden="true">
+                                        <path class="chart-area" :d="$areaPath(chartPoints, 260, 72)" fill="var(--brand-soft)"></path>
+                                        <path class="chart-line" :d="$linePath(chartPoints, 260, 72)" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round"></path>
+                                    </svg>
+                                    <div class="chart-caption"><span>7 derniers jours</span><span>+38 % de runs</span></div>
+                                </div>
+                                <div style="position:relative;">
+                                    <transition-group name="feed" tag="div" class="feed">
+                                        <div v-for="item in feed" :key="item.id" class="feed-item">
+                                            <ic :name="item.icon" :size="14" :style="{ color: item.color, flex: 'none' }"></ic>
+                                            <span class="f-text">{{ item.text }}</span>
+                                            <span class="f-time">{{ item.time }}</span>
+                                        </div>
+                                    </transition-group>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Équipe -->
+                    <div v-reveal="140">
+                        <div class="card b-card">
+                            <span class="b-icon" style="background: color-mix(in srgb, var(--cat-2) 12%, transparent); color: var(--cat-2);"><ic name="users" :size="18"></ic></span>
+                            <h3>Travail d'équipe</h3>
+                            <p>Équipes, invitations, permissions fines. Vos workflows vivent avec votre organisation.</p>
+                            <div class="b-visual avatar-stack">
+                                <span class="avatar avatar-gradient">SF</span>
+                                <span class="avatar avatar-gradient" style="background:linear-gradient(135deg, var(--cat-2), var(--cat-5));">LR</span>
+                                <span class="avatar avatar-gradient" style="background:linear-gradient(135deg, var(--cat-4), var(--cat-2));">TM</span>
+                                <span class="avatar">+4</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Templates (pleine largeur) -->
+                    <div class="b-span4" v-reveal="60">
+                        <div class="card b-card">
+                            <div class="tpl-strip">
+                                <div style="display:flex; flex-direction:column; gap:10px; max-width:52ch;">
+                                    <span class="b-icon" style="background: var(--brand-soft); color: var(--brand-ink);"><ic name="layers" :size="18"></ic></span>
+                                    <h3>Démarrez en un clic</h3>
+                                    <p>40+ templates prêts à l'emploi, du lead capture au rapport hebdomadaire. Dupliquez, ajustez, exécutez.</p>
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:14px; align-items:flex-end;">
+                                    <div class="chip-row" style="justify-content:flex-end;">
+                                        <span class="mini-chip"><i style="background:var(--cat-1)"></i>Lead → CRM</span>
+                                        <span class="mini-chip"><i style="background:var(--cat-3)"></i>Veille concurrentielle IA</span>
+                                        <span class="mini-chip"><i style="background:var(--cat-4)"></i>Rapport hebdomadaire</span>
+                                        <span class="mini-chip"><i style="background:var(--cat-2)"></i>Triage du support</span>
+                                    </div>
+                                    <a class="tpl-link" href="templates.html">Parcourir la galerie <ic name="arrow-right" :size="14"></ic></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= CTA final ================= -->
+        <section class="cta-section">
+            <div class="wrap">
+                <div class="cta-panel" v-reveal>
+                    <h2>Laissez le faucon veiller.</h2>
+                    <p>Vos tâches répétitives deviennent des workflows qui tournent seuls — pendant que vous avancez sur l'essentiel.</p>
+                    <div class="cta-actions">
+                        <a class="btn btn-lg btn-cta" href="register.html">Créer mon compte gratuitement <ic name="arrow-right" :size="16"></ic></a>
+                        <a class="btn btn-lg btn-cta-ghost" href="templates.html">Explorer les templates</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ================= Pied de page ================= -->
+    <footer class="site-footer">
+        <div class="wrap">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand">
+                        <img src="img/logo.svg" alt="Faucon">
+                        Faucon
+                        <span class="badge badge-outline" style="font-size:10px;">AI Workflow Hub</span>
+                    </div>
+                    <p class="text-sm text-muted" style="margin-top:12px; max-width:34ch; line-height:1.6;">
+                        Créez, exécutez et observez des workflows automatisés propulsés par l'IA.
+                    </p>
+                </div>
+                <div class="footer-col">
+                    <h4>Démo</h4>
+                    <a href="dashboard.html">Tableau de bord</a>
+                    <a href="workflows.html">Workflows</a>
+                    <a href="builder.html">Éditeur</a>
+                    <a href="executions.html">Exécutions</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Ressources</h4>
+                    <a href="templates.html">Templates</a>
+                    <a href="index.html">Toutes les maquettes</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Ainatrix</h4>
+                    <a href="https://www.ainatrix.com" target="_blank" rel="noopener">ainatrix.com</a>
+                    <a href="mailto:nyaina@ainatrix.com">nyaina@ainatrix.com</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© 2026 Faucon · MIT</span>
+                <a class="ainatrix" href="https://www.ainatrix.com" target="_blank" rel="noopener">
+                    <ic name="sparkles" :size="14"></ic>
+                    Conçu &amp; développé par Ainatrix
+                </a>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+<script src="js/app.js"></script>
+<script>
+    (function () {
+        'use strict';
+
+        const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        /* Journaux simulés de l'exécution démo */
+        const WF_LOGS = {
+            webhook: 'webhook.received — POST /hooks/lead-capture (marie@acme.com)',
+            ai: 'ai.analyze → catégorie « lead » · confiance 0,97',
+            cond: 'condition ai.category == « lead » → branche true',
+            mail: 'action.email → réponse envoyée à marie@acme.com',
+            sort: 'action.crm → fiche archivée (catégorie « autre »)',
+            done: 'Exécution réussie — 5 nodes · 0 erreur',
+        };
+
+        /* Flux d'activité simulé (carte observabilité) */
+        const FEED_POOL = [
+            { icon: 'circle-check', color: 'var(--success)', text: '« Veille concurrentielle » — succès en 3,9 s' },
+            { icon: 'webhook', color: 'var(--cat-1)', text: 'Webhook /lead-capture reçu — run #4813' },
+            { icon: 'sparkles', color: 'var(--cat-3)', text: 'Résumé IA généré (312 tokens)' },
+            { icon: 'mail', color: 'var(--cat-4)', text: 'Rapport hebdo envoyé à 14 destinataires' },
+            { icon: 'clock', color: 'var(--info)', text: '« Rapport hebdo » planifié — 0 9 * * 1' },
+            { icon: 'activity', color: 'var(--cat-5)', text: '« Triage support » — 42 tickets classés' },
+        ];
+
+        const app = Vue.createApp({
+            data() {
+                return {
+                    /* thème + en-tête */
+                    dark: window.FauconUI.Theme.get() === 'dark',
+                    scrolled: false,
+
+                    /* rotation du mot du titre */
+                    words: ['sans effort.', 'sans code.', "avec l'IA.", 'en équipe.'],
+                    wordIndex: 0,
+
+                    /* chiffres clés (countUp) */
+                    stats: { nodes: 0, tpl: 0, avg: 0, logs: 0 },
+
+                    /* démo workflow */
+                    demoNodes: [
+                        { id: 'webhook', x: 16,  y: 30,  w: 130, h: 58, color: 'var(--cat-1)', icon: 'webhook',  label: 'Webhook',    sub: 'lead-capture' },
+                        { id: 'ai',      x: 206, y: 30,  w: 130, h: 58, color: 'var(--cat-3)', icon: 'sparkles', label: 'Analyse IA', sub: 'claude · gpt' },
+                        { id: 'cond',    x: 396, y: 30,  w: 130, h: 58, color: 'var(--cat-5)', icon: 'git-fork', label: 'Condition',  sub: 'ai.category' },
+                        { id: 'sort',    x: 300, y: 192, w: 130, h: 58, color: 'var(--cat-2)', icon: 'inbox',    label: 'Classement', sub: 'archive CRM' },
+                        { id: 'mail',    x: 506, y: 192, w: 140, h: 58, color: 'var(--cat-4)', icon: 'mail',     label: 'E-mail',     sub: 'réponse auto' },
+                    ],
+                    edges: {
+                        ab: { d: 'M146 59 H206', color: 'var(--cat-1)', pts: [[146, 59], [206, 59]] },
+                        bc: { d: 'M336 59 H396', color: 'var(--cat-3)', pts: [[336, 59], [396, 59]] },
+                        ce: { d: 'M430 88 V150 H365 V192', color: 'var(--cat-5)', pts: [[430, 88], [430, 150], [365, 150], [365, 192]] },
+                        cd: { d: 'M492 88 V168 H576 V192', color: 'var(--cat-5)', pts: [[492, 88], [492, 168], [576, 168], [576, 192]] },
+                    },
+                    nodeState: { webhook: 'pending', ai: 'pending', cond: 'pending', sort: 'pending', mail: 'pending' },
+                    edgeState: { ab: 'idle', bc: 'idle', ce: 'idle', cd: 'idle' },
+                    dot: { on: false, x: 0, y: 0 },
+                    loop: 0,
+                    runOk: false,
+                    runDuration: '2,8 s',
+                    logIndex: 'idle',
+                    logs: WF_LOGS,
+
+                    /* carte observabilité */
+                    chartPoints: [4, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16],
+                    chartDrawn: false,
+                    feed: [],
+                    feedTick: 0,
+                    feedId: 0,
+                    liveStarted: false,
+                };
+            },
+            computed: {
+                currentLog() {
+                    return this.logs[this.logIndex] || 'en attente du déclencheur…';
+                },
+                logDone() {
+                    return this.logIndex === 'done';
+                },
+            },
+            methods: {
+                pct(value, total) {
+                    return (value / total * 100).toFixed(3) + '%';
+                },
+                toggleTheme() {
+                    window.FauconUI.Theme.toggle();
+                    this.dark = window.FauconUI.Theme.get() === 'dark';
+                },
+                setNode(id, state) {
+                    this.nodeState[id] = state;
+                },
+                setLog(key) {
+                    this.logIndex = key;
+                },
+                /* anime le paquet le long d'une edge (polyligne) */
+                travel(key) {
+                    return new Promise((resolve) => {
+                        const segs = this.edges[key].pts;
+                        const lens = [];
+                        let total = 0;
+                        for (let i = 0; i < segs.length - 1; i++) {
+                            const l = Math.hypot(segs[i + 1][0] - segs[i][0], segs[i + 1][1] - segs[i][1]);
+                            lens.push(l);
+                            total += l;
+                        }
+                        this.edgeState[key] = 'live';
+                        this.dot.on = true;
+                        const dur = Math.max(340, total * 1.5);
+                        const t0 = performance.now();
+                        const frame = (now) => {
+                            const t = Math.min(1, (now - t0) / dur);
+                            const e = 1 - Math.pow(1 - t, 2);
+                            let d = e * total;
+                            let i = 0;
+                            while (i < lens.length - 1 && d > lens[i]) {
+                                d -= lens[i];
+                                i++;
+                            }
+                            const p0 = segs[i];
+                            const p1 = segs[i + 1];
+                            const r = lens[i] ? d / lens[i] : 0;
+                            this.dot.x = p0[0] + (p1[0] - p0[0]) * r;
+                            this.dot.y = p0[1] + (p1[1] - p0[1]) * r;
+                            if (t < 1) {
+                                requestAnimationFrame(frame);
+                            } else {
+                                this.edgeState[key] = 'done';
+                                this.dot.on = false;
+                                resolve();
+                            }
+                        };
+                        requestAnimationFrame(frame);
+                    });
+                },
+                resetDemo() {
+                    Object.keys(this.nodeState).forEach((k) => { this.nodeState[k] = 'pending'; });
+                    Object.keys(this.edgeState).forEach((k) => { this.edgeState[k] = 'idle'; });
+                    this.runOk = false;
+                    this.logIndex = 'idle';
+                },
+                /* boucle d'exécution de la démo (alterne les branches) */
+                async runDemo() {
+                    const branchTrue = this.loop % 2 === 0;
+                    this.runDuration = branchTrue ? '2,8 s' : '2,3 s';
+                    this.resetDemo();
+                    await wait(600);
+                    this.setNode('webhook', 'running');
+                    this.setLog('webhook');
+                    await wait(850);
+                    this.setNode('webhook', 'done');
+                    await this.travel('ab');
+                    this.setNode('ai', 'running');
+                    this.setLog('ai');
+                    await wait(1000);
+                    this.setNode('ai', 'done');
+                    await this.travel('bc');
+                    this.setNode('cond', 'running');
+                    this.setLog('cond');
+                    await wait(700);
+                    this.setNode('cond', 'done');
+                    await wait(250);
+                    if (branchTrue) {
+                        await this.travel('cd');
+                        this.setNode('mail', 'running');
+                        this.setLog('mail');
+                        await wait(800);
+                        this.setNode('mail', 'done');
+                    } else {
+                        await this.travel('ce');
+                        this.setNode('sort', 'running');
+                        this.setLog('sort');
+                        await wait(700);
+                        this.setNode('sort', 'done');
+                    }
+                    this.runOk = true;
+                    this.setLog('done');
+                    await wait(2200);
+                    this.loop++;
+                    this.runDemo();
+                },
+                startLive() {
+                    if (this.liveStarted) {
+                        return;
+                    }
+                    this.liveStarted = true;
+                    this.chartDrawn = true;
+                    if (REDUCED) {
+                        this.feed = FEED_POOL.slice(0, 3).map((item, i) => ({ ...item, id: i, time: 'il y a 2 min' }));
+                        return;
+                    }
+                    for (let i = 0; i < 3; i++) {
+                        this.pushFeed();
+                    }
+                    setInterval(() => {
+                        if (!document.hidden) {
+                            this.pushFeed();
+                        }
+                    }, 2600);
+                },
+                pushFeed() {
+                    const src = FEED_POOL[this.feedTick % FEED_POOL.length];
+                    this.feedTick++;
+                    this.feed.unshift({ ...src, id: this.feedId++, time: 'à l\'instant' });
+                    if (this.feed.length > 3) {
+                        this.feed.pop();
+                    }
+                },
+            },
+            mounted() {
+                /* en-tête : ombre au scroll */
+                window.addEventListener('scroll', () => { this.scrolled = window.scrollY > 8; }, { passive: true });
+
+                /* chiffres clés */
+                if (REDUCED) {
+                    this.stats = { nodes: 17, tpl: 40, avg: 2.8, logs: 100 };
+                } else {
+                    this.$countUp(this.stats, 'nodes', 17);
+                    setTimeout(() => this.$countUp(this.stats, 'tpl', 40), 120);
+                    setTimeout(() => this.$countUp(this.stats, 'avg', 2.8, { decimals: 1 }), 240);
+                    setTimeout(() => this.$countUp(this.stats, 'logs', 100), 360);
+                }
+
+                /* rotation du mot du titre */
+                if (!REDUCED) {
+                    setInterval(() => {
+                        if (!document.hidden) {
+                            this.wordIndex = (this.wordIndex + 1) % this.words.length;
+                        }
+                    }, 2700);
+                }
+
+                /* démo workflow */
+                if (REDUCED) {
+                    Object.keys(this.nodeState).forEach((k) => { this.nodeState[k] = 'done'; });
+                    this.runOk = true;
+                    this.logIndex = 'done';
+                } else {
+                    this.runDemo();
+                }
+
+                /* carte observabilité : démarre quand elle entre à l'écran */
+                if (this.$refs.livecard && 'IntersectionObserver' in window) {
+                    const io = new IntersectionObserver((entries) => {
+                        entries.forEach((entry) => {
+                            if (entry.isIntersecting) {
+                                this.startLive();
+                                io.disconnect();
+                            }
+                        });
+                    }, { threshold: 0.3 });
+                    io.observe(this.$refs.livecard);
+                } else {
+                    this.startLive();
+                }
+            },
+        });
+
+        /* Directive v-reveal : apparition au scroll (stagger via binding value) */
+        let revealObserver = null;
+        function getRevealObserver() {
+            if (!revealObserver) {
+                revealObserver = new IntersectionObserver((entries) => {
+                    entries.forEach((entry) => {
+                        if (!entry.isIntersecting) {
+                            return;
+                        }
+                        const el = entry.target;
+                        el.classList.add('revealed');
+                        revealObserver.unobserve(el);
+                        /* retire la classe une fois la transition finie :
+                           rend à la carte ses transitions de survol */
+                        setTimeout(() => el.classList.remove('reveal', 'revealed'), 900);
+                    });
+                }, { threshold: 0.12 });
+            }
+            return revealObserver;
+        }
+        app.directive('reveal', {
+            mounted(el, binding) {
+                if (REDUCED || !('IntersectionObserver' in window)) {
+                    return; /* reste visible sans animation */
+                }
+                el.classList.add('reveal');
+                if (binding.value) {
+                    el.style.transitionDelay = binding.value + 'ms';
+                }
+                getRevealObserver().observe(el);
+            },
+        });
+
+        app.use(window.FauconUI.plugin).mount('#app');
+    })();
+</script>
+</body>
+</html>

@@ -158,9 +158,7 @@
                             <p class="page-desc">Voici l'activité de vos workflows — mardi 19 septembre.</p>
                         </div>
                         <div class="page-actions">
-                            <button class="btn btn-outline" @click="$toast({title:'Export CSV programmé', type:'info'})">
-                                <ic name="download" :size="15"></ic> Exporter
-                            </button>
+                            <a class="btn btn-outline" href="templates.html"><ic name="layers" :size="15"></ic> Templates</a>
                             <a class="btn btn-primary" href="builder.html"><ic name="plus" :size="15"></ic> Nouveau workflow</a>
                         </div>
                     </div>
@@ -174,11 +172,7 @@
                             </div>
                             <div class="kpi-value">{{ fmtNumber(display.exec) }}</div>
                             <div class="kpi-bottom">
-                                <span class="kpi-trend up"><ic name="trending-up"></ic>+12,4 %</span>
-                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
-                                    <path :d="$linePath(sparks.exec, 90, 28, { pad: 3 })" fill="none"
-                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
-                                </svg>
+                                <span class="kpi-sub">8 902 sur 7 j</span>
                             </div>
                         </div>
 
@@ -189,11 +183,7 @@
                             </div>
                             <div class="kpi-value">{{ display.success.toLocaleString('fr-FR', { minimumFractionDigits: 1 }) }} %</div>
                             <div class="kpi-bottom">
-                                <span class="kpi-trend up"><ic name="trending-up"></ic>+0,3 pt</span>
-                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
-                                    <path :d="$linePath(sparks.success, 90, 28, { pad: 3 })" fill="none"
-                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
-                                </svg>
+                                <span class="kpi-sub">dont 47 échecs</span>
                             </div>
                         </div>
 
@@ -204,26 +194,18 @@
                             </div>
                             <div class="kpi-value">{{ display.wf }}</div>
                             <div class="kpi-bottom">
-                                <span class="kpi-trend up"><ic name="trending-up"></ic>+3 cette semaine</span>
-                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
-                                    <path :d="$linePath(sparks.wf, 90, 28, { pad: 3 })" fill="none"
-                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
-                                </svg>
+                                <span class="kpi-sub">sur 27 workflows</span>
                             </div>
                         </div>
 
                         <div class="card card-hover kpi-card anim-in d-4">
                             <div class="kpi-top">
-                                <span class="kpi-label">Tokens IA · mois</span>
-                                <span class="kpi-icon c3"><ic name="bot" :size="15"></ic></span>
+                                <span class="kpi-label">Durée moyenne · 7 j</span>
+                                <span class="kpi-icon c3"><ic name="timer" :size="15"></ic></span>
                             </div>
-                            <div class="kpi-value">{{ display.tokens.toLocaleString('fr-FR', { minimumFractionDigits: 1 }) }} M</div>
+                            <div class="kpi-value">{{ display.avg.toLocaleString('fr-FR', { minimumFractionDigits: 1 }) }} s</div>
                             <div class="kpi-bottom">
-                                <span class="kpi-trend down"><ic name="trending-up"></ic>68 % du quota</span>
-                                <svg class="sparkline" width="90" height="28" viewBox="0 0 90 28">
-                                    <path :d="$linePath(sparks.tokens, 90, 28, { pad: 3 })" fill="none"
-                                          stroke="var(--muted-foreground)" stroke-width="1.8" stroke-linecap="round" opacity="0.55"></path>
-                                </svg>
+                                <span class="kpi-sub">exécutions réussies</span>
                             </div>
                         </div>
                     </div>
@@ -276,21 +258,19 @@
 
                         <div style="display:flex; flex-direction:column; gap:14px;">
                             <div class="card anim-in d-4">
-                                <div class="card-content" style="padding-bottom:6px;">
-                                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                                        <span class="live-dot"></span>
-                                        <div class="card-title" style="font-size:14px;">Activité en direct</div>
-                                    </div>
-                                    <div class="feed-list">
-                                        <div class="feed-item" v-for="item in feed" :key="item.id">
-                                            <span class="feed-icon" :style="{ background: item.bg, color: item.color }">
-                                                <ic :name="item.icon" :size="14"></ic>
+                                <div class="card-content" style="padding-bottom:10px;">
+                                    <div class="card-title" style="font-size:14px; margin-bottom:10px;">Vos workflows</div>
+                                    <div style="display:grid; gap:4px;">
+                                        <a class="wf-quick" v-for="w in myWorkflows" :key="w.name" href="builder.html">
+                                            <span class="wf-dot" :class="{ off: !w.active }" :title="w.active ? 'Actif' : 'En pause'"></span>
+                                            <span class="wf-quick-body">
+                                                <span class="wf-quick-name">{{ w.name }}</span>
+                                                <small class="text-xs text-muted">{{ w.meta }}</small>
                                             </span>
-                                            <div class="feed-body">
-                                                <p>{{ item.text }}</p>
-                                                <time>à l'instant</time>
-                                            </div>
-                                        </div>
+                                            <span v-if="w.badge" class="badge" :class="w.badge.cls">
+                                                <ic v-if="w.badge.icon" :name="w.badge.icon" :size="11"></ic>{{ w.badge.label }}
+                                            </span>
+                                        </a>
                                     </div>
                                 </div>
                             </div>
@@ -396,13 +376,7 @@
             mixins: [FauconUI.shellMixin],
             data() {
                 return {
-                    display: { exec: 0, success: 0, wf: 0, tokens: 0 },
-                    sparks: {
-                        exec: [820, 940, 880, 1120, 1260, 1080, 1340, 1290, 1420, 1180, 1520, 1610],
-                        success: [97.1, 97.8, 97.4, 98.0, 98.2, 97.9, 98.4, 98.1, 98.3, 98.0, 98.2, 98.2],
-                        wf: [18, 18, 19, 19, 20, 21, 21, 22, 22, 22, 23, 23],
-                        tokens: [2.4, 2.7, 2.6, 3.0, 3.3, 3.1, 3.6, 3.8, 3.7, 4.0, 4.1, 4.2],
-                    },
+                    display: { exec: 0, success: 0, wf: 0, avg: 0 },
                     range: '14 j',
                     datasets: {
                         '7 j': [1180, 1520, 1610, 1480, 1684, 1540, 1712],
@@ -412,16 +386,14 @@
                     hover: null,
                     chartWidth: 660,
                     chartHeight: 240,
-                    feedId: 0,
-                    feedPool: [
-                        { icon: 'webhook', bg: 'color-mix(in srgb, var(--cat-1) 14%, transparent)', color: 'var(--cat-1)', text: 'Webhook « /hooks/leads » a déclenché Traitement des nouveaux leads' },
-                        { icon: 'bot', bg: 'color-mix(in srgb, var(--cat-3) 13%, transparent)', color: 'var(--cat-3)', text: 'Classification terminée — label « lead » (94 %)' },
-                        { icon: 'mail', bg: 'color-mix(in srgb, var(--cat-4) 13%, transparent)', color: 'var(--cat-4)', text: 'Email de réponse envoyé à client@exemple.com' },
-                        { icon: 'globe', bg: 'color-mix(in srgb, var(--cat-2) 13%, transparent)', color: 'var(--cat-2)', text: 'Requête HTTP vers api.exemple.com — 200 OK · 214 ms' },
-                        { icon: 'circle-check', bg: 'var(--success-soft)', color: 'var(--success)', text: 'Rapport hebdomadaire exécuté avec succès' },
-                        { icon: 'git-branch', bg: 'color-mix(in srgb, var(--cat-5) 13%, transparent)', color: 'var(--cat-5)', text: 'Condition évaluée : branche true empruntée' },
+                    myWorkflows: [
+                        { name: 'Traitement des nouveaux leads', active: true, meta: 'Dernière exécution · Aujourd’hui 12:04', badge: { cls: 'badge-info', icon: 'loader-circle', label: 'En cours' } },
+                        { name: 'Veille concurrentielle IA', active: true, meta: 'Dernière exécution · Aujourd’hui 11:47', badge: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' } },
+                        { name: 'Modération des formulaires', active: true, meta: 'Dernière exécution · Aujourd’hui 11:15', badge: { cls: 'badge-danger', icon: 'circle-x', label: 'Échec' } },
+                        { name: 'Rapport hebdomadaire', active: true, meta: 'Dernière exécution · Aujourd’hui 10:00', badge: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' } },
+                        { name: 'Sync GitHub → canal #dev', active: true, meta: 'Dernière exécution · Aujourd’hui 09:52', badge: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' } },
+                        { name: 'Import mensuel CRM', active: false, meta: 'Jamais exécutée', badge: null },
                     ],
-                    feed: [],
                     topWorkflows: [
                         { name: 'Traitement des nouveaux leads', runs: 412 },
                         { name: 'Veille concurrentielle IA', runs: 286 },
@@ -485,27 +457,12 @@
                 goExec(id) {
                     this.$toast({ title: `Ouverture de ${id}`, description: 'Voir executions.html pour l’écran complet', type: 'info', duration: 2600 });
                 },
-                pushFeed() {
-                    const item = this.feedPool[this.feedId % this.feedPool.length];
-                    this.feedId++;
-                    this.feed.unshift({ id: this.feedId, ...item });
-                    if (this.feed.length > 4) {
-                        this.feed.pop();
-                    }
-                },
             },
             mounted() {
                 this.$countUp(this.display, 'exec', 1284);
                 this.$countUp(this.display, 'success', 98.2, { decimals: 1 });
                 this.$countUp(this.display, 'wf', 23);
-                this.$countUp(this.display, 'tokens', 4.2, { decimals: 1 });
-                this.pushFeed();
-                this.pushFeed();
-                this.pushFeed();
-                this._feedTimer = setInterval(this.pushFeed, 4200);
-            },
-            beforeUnmount() {
-                clearInterval(this._feedTimer);
+                this.$countUp(this.display, 'avg', 4.8, { decimals: 1 });
             },
         })
             .use(FauconUI.plugin)

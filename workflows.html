@@ -317,13 +317,12 @@
                                   placeholder="À quoi sert ce workflow ?"></textarea>
                     </div>
                     <div class="field">
-                        <label class="label" for="wf-tpl">Partir d'un template</label>
-                        <select id="wf-tpl" class="select" v-model="createForm.template">
-                            <option value="">Griffe vide (déclencheur manuel)</option>
-                            <option>Support client IA</option>
-                            <option>Veille de marché</option>
-                            <option>Onboarding lead</option>
-                        </select>
+                        <label class="label">Partir d'un template</label>
+                        <a class="btn btn-outline" href="templates.html" style="justify-content:flex-start; width:100%;">
+                            <ic name="layers" :size="15"></ic> Parcourir les templates
+                            <ic name="arrow-up-right" :size="13" style="margin-left:auto;"></ic>
+                        </a>
+                        <p class="text-xs text-muted" style="margin-top:6px;">Choisissez un modèle dans la galerie — son graphe est dupliqué dans votre équipe, tout reste éditable.</p>
                     </div>
                 </div>
 
@@ -356,7 +355,7 @@
                     menuFor: null,
                     createOpen: false,
                     processing: false,
-                    createForm: { name: '', desc: '', template: '' },
+                    createForm: { name: '', desc: '' },
                     workflows: [
                         { id: 'wf-1', name: 'Traitement des nouveaux leads', desc: 'Webhook → classification IA → réponse e-mail automatisée au prospect.', trigger: 'webhook', active: true, nodes: 5, lastRun: 'il y a 4 min', success: '98,4 %', runs: 412 },
                         { id: 'wf-2', name: 'Veille concurrentielle IA', desc: 'Résumé quotidien des actualités de la concurrence envoyé à l’équipe.', trigger: 'schedule', active: true, nodes: 4, lastRun: 'il y a 1 h', success: '99,1 %', runs: 286 },
@@ -419,19 +418,18 @@
                     setTimeout(() => {
                         this.processing = false;
                         this.createOpen = false;
-                        const fromTpl = !!this.createForm.template;
                         this.workflows.unshift({
                             id: 'wf-' + Date.now(),
                             name: this.createForm.name,
                             desc: this.createForm.desc || 'Nouveau workflow — décrivez-le dans l’éditeur.',
-                            trigger: fromTpl ? 'webhook' : 'manual',
+                            trigger: 'manual',
                             active: false,
-                            nodes: fromTpl ? 4 : 1,
+                            nodes: 1,
                             lastRun: '—',
                             success: '—',
                             runs: 0,
                         });
-                        this.createForm = { name: '', desc: '', template: '' };
+                        this.createForm = { name: '', desc: '' };
                         this.$toast({ title: 'Workflow créé', description: 'Ouvrez l’éditeur pour construire le graphe.', type: 'success' });
                     }, 700);
                 },
