@@ -144,7 +144,7 @@
                                 <span class="node-icon"><ic :name="NODE_TYPES[node.type].icon" :size="15"></ic></span>
                                 <span class="node-titles">
                                     <b>{{ node.title }}</b>
-                                    <small>{{ NODE_TYPES[node.type].label }}</small>
+                                    <small>{{ shortKey(node) }} - {{ NODE_TYPES[node.type].label }} · {{ CATS[NODE_TYPES[node.type].cat].label }}</small>
                                 </span>
                                 <span class="node-status" :class="node.status">
                                     <span v-if="node.status === 'running'" class="spinner" style="border-top-color:currentColor;"></span>
@@ -474,6 +474,10 @@
                 },
                 isGroupOpen(key) {
                     return this.palQuery.trim() ? true : this.openGroup === key;
+                },
+                /* Clé courte affichée sur la carte : 6 premiers caractères + « … » si plus longue. */
+                shortKey(node) {
+                    return node.id.length > 6 ? node.id.slice(0, 6) + '…' : node.id;
                 },
             },
             mounted() {
