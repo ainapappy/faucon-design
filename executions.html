@@ -182,6 +182,21 @@
                             <option value="7j">7 derniers jours</option>
                             <option value="30j">30 derniers jours</option>
                         </select>
+                        <!-- Sélection massive : même ligne que les filtres, poussée à droite -->
+                        <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+                            <p class="text-sm text-muted" aria-live="polite" style="margin:0;">{{ checked.length }} sur {{ filtered.length }} sélectionné{{ checked.length > 1 ? 's' : '' }}</p>
+                            <button class="btn btn-ghost" type="button" style="padding:4px 8px;" @click="toggleAll">{{ allSelected ? 'Tout désélectionner' : 'Tout sélectionner' }}</button>
+                            <div style="position:relative;" v-click-outside="() => massOpen = false">
+                                <button class="btn btn-outline" type="button" @click="massOpen = !massOpen">
+                                    {{ massActionLabel }} <ic name="chevron-down" :size="15"></ic>
+                                </button>
+                                <div class="dropdown" v-if="massOpen" style="top:calc(100% + 6px); right:0; width:250px;">
+                                    <button class="dropdown-item" type="button" @click="massAction = 'cancel'; massOpen = false"><ic name="circle-slash" :size="15"></ic> Annuler la sélection</button>
+                                    <button class="dropdown-item" type="button" @click="massAction = 'retry'; massOpen = false"><ic name="rotate-ccw" :size="15"></ic> Relancer la sélection</button>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" type="button" :disabled="!massAction || checked.length === 0" @click="runMassAction">Action</button>
+                        </div>
                     </div>
 
                     <!-- Tableau -->
@@ -189,6 +204,7 @@
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width:36px;"></th>
                                     <th>Exécution</th>
                                     <th>Workflow</th>
                                     <th>Déclencheur</th>
@@ -201,6 +217,7 @@
                             </thead>
                             <tbody>
                                 <tr class="clickable" v-for="(e, i) in filtered" :key="e.id" @click="open(e)">
+                                    <td @click.stop><input type="checkbox" class="checkbox" :checked="checked.includes(e.id)" @change="toggleRow(e)" :aria-label="'Sélectionner ' + e.id"></td>
                                     <td><span class="exec-id">{{ e.id }}</span></td>
                                     <td style="font-weight:500;">{{ e.wf }}</td>
                                     <td><span class="badge badge-outline">{{ e.trigger }}</span></td>
@@ -224,7 +241,7 @@
                                     <td><ic name="chevron-right" :size="15" style="color:var(--muted-foreground)"></ic></td>
                                 </tr>
                                 <tr v-if="!filtered.length">
-                                    <td colspan="8">
+                                    <td colspan="9">
                                         <div class="empty" style="border:0;">
                                             <span class="empty-icon"><ic name="activity" :size="20"></ic></span>
                                             <b>Aucune exécution pour ces filtres</b>
@@ -417,6 +434,9 @@
                     current: null,
                     openStep: null,
                     refreshing: false,
+                    checked: [],
+                    massAction: '',
+                    massOpen: false,
                     runs: [
                         { id: '#exec-042', wf: 'Traitement des nouveaux leads', trigger: 'Webhook', status: 'running', at: 'Aujourd’hui · 12:04', ms: 0, nodes: 5, done: 3, detail: DETAIL_RUNNING },
                         { id: '#exec-041', wf: 'Veille concurrentielle IA', trigger: 'Cron', status: 'success', at: 'Aujourd’hui · 11:47', ms: 4120, nodes: 4, done: 4, detail: DETAIL_SUCCESS },
@@ -441,12 +461,45 @@
                         return !q || r.id.toLowerCase().includes(q) || r.wf.toLowerCase().includes(q);
                     });
                 },
+                allSelected() {
+                    return this.filtered.length > 0 && this.checked.length === this.filtered.length;
+                },
+                massActionLabel() {
+                    if (this.massAction === 'cancel') return 'Annuler la sélection';
+                    if (this.massAction === 'retry') return 'Relancer la sélection';
+                    return 'Actions massives';
+                },
                 maxMs() {
                     const steps = this.current ? this.current.detail.steps : [];
                     return Math.max(1, ...steps.map((s) => s.ms || 0));
                 },
             },
+            watch: {
+                filtered() {
+                    this.checked = [];
+                },
+            },
             methods: {
+                toggleRow(run) {
+                    const i = this.checked.indexOf(run.id);
+                    if (i >= 0) this.checked.splice(i, 1);
+                    else this.checked.push(run.id);
+                },
+                toggleAll() {
+                    this.checked = this.allSelected ? [] : this.filtered.map((r) => r.id);
+                },
+                runMassAction() {
+                    const targets = this.filtered.filter((r) => this.checked.includes(r.id));
+                    if (this.massAction === 'cancel') {
+                        const eligible = targets.filter((r) => r.status === 'running' || r.status === 'queued');
+                        this.$toast({ title: 'Annulation demandée', description: eligible.length + ' exécution(s) s’arrêteront entre deux nodes.', type: 'info' });
+                    } else if (this.massAction === 'retry') {
+                        const eligible = targets.filter((r) => r.status === 'failed');
+                        this.$toast({ title: 'Relance programmée', description: eligible.length + ' exécution(s) vont être relancée(s).', type: 'info' });
+                    }
+                    this.checked = [];
+                    this.massAction = '';
+                },
                 status(s) {
                     return {
                         success: { cls: 'badge-success', icon: 'circle-check', label: 'Succès' },

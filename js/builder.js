@@ -47,7 +47,9 @@
         webhook: {
             cat: 'trigger', icon: 'webhook', label: 'Webhook', desc: 'Appel HTTP entrant, idempotent et rate-limité',
             inputs: 0, outputs: [{ id: 'out', pos: 0.5 }],
-            fields: [],
+            fields: [
+                { key: 'sample_input', label: 'Input d’échantillon (JSON)', type: 'textarea', placeholder: '{ "email": "client@example.com" }', mono: true },
+            ],
             webhookPanel: true,
         },
         schedule: {
@@ -55,12 +57,15 @@
             inputs: 0, outputs: [{ id: 'out', pos: 0.5 }],
             fields: [
                 { key: 'cron', label: 'Expression cron', type: 'text', placeholder: '0 9 * * 1', mono: true },
+                { key: 'sample_input', label: 'Input d’échantillon (JSON)', type: 'textarea', placeholder: '{ "email": "client@example.com" }', mono: true },
             ],
         },
         manual: {
             cat: 'trigger', icon: 'play', label: 'Manuel', desc: 'Lancement depuis l’interface',
             inputs: 0, outputs: [{ id: 'out', pos: 0.5 }],
-            fields: [],
+            fields: [
+                { key: 'sample_input', label: 'Input d’échantillon (JSON)', type: 'textarea', placeholder: '{ "email": "client@example.com" }', mono: true },
+            ],
         },
         input: {
             cat: 'data', icon: 'braces', label: 'Entrée', desc: 'Données injectées dans le workflow',
@@ -91,11 +96,22 @@
             ],
         },
         filter: {
-            cat: 'logic', icon: 'filter', label: 'Filtre', desc: 'Ne laisse passer que les éléments valides',
-            inputs: 1, outputs: [{ id: 'out', pos: 0.5 }],
+            cat: 'logic', icon: 'filter', label: 'Filtre', desc: 'Ne laisse passer que les éléments qui satisfont la condition',
+            inputs: 1, outputs: [{ id: 'passed', pos: 0.3, label: 'Passés' }, { id: 'dropped', pos: 0.7, label: 'Écartés' }],
             fields: [
-                { key: 'expression', label: 'Condition d’inclusion', type: 'text', mono: true },
+                { key: 'expression', label: 'Liste à filtrer', type: 'text', placeholder: '{{ input.items }}', mono: true },
+                { key: 'operator', label: 'Opérateur', type: 'select', options: ['==', '!=', 'contains', 'empty'] },
+                { key: 'value', label: 'Valeur', type: 'text', placeholder: 'lead' },
             ],
+        },
+        'logic.batch': {
+            cat: 'logic', icon: 'repeat', label: 'Boucle', desc: 'Exécute le corps pour chaque élément d’une liste (séquentiel, plafonné à 100 items)',
+            inputs: 1, outputs: [{ id: 'item', pos: 0.34, label: 'Pour chaque' }, { id: 'done', pos: 0.72, label: 'Après la boucle' }],
+            fields: [
+                { key: 'expression', label: 'Liste source', type: 'text', placeholder: '{{ trigger.items }}', mono: true },
+                { key: 'failure_policy', label: 'Politique d’échec', type: 'select', options: ['fail', 'continue'] },
+            ],
+            batchPanel: true,
         },
         'ai.prompt': {
             cat: 'ai', icon: 'pen-line', label: 'Prompt', desc: 'Interroge un modèle IA avec un prompt libre',
@@ -207,27 +223,23 @@
                 CATS,
                 nodeW: NODE_W,
                 nodeH: NODE_H,
-                wfName: 'Traitement des nouveaux leads',
+                wfName: 'Relance des devis en attente',
                 wfStatus: 'Brouillon',
                 saveState: 'saved', // saved | saving
                 savedAt: '12:04',
                 view: { x: 30, y: 24, zoom: 0.82 },
                 nodes: [
-                    { id: 'n1', type: 'webhook', title: 'Nouveau lead', x: 60, y: 200, status: 'idle', config: { method: 'POST', path: 'hooks/leads' } },
-                    { id: 'n2', type: 'ai.classification', title: 'Classifier le message', x: 330, y: 150, status: 'idle', config: { model: 'anthropic/claude-haiku-4-5', prompt: 'Classe ce message entrant parmi les étiquettes.', labels: 'lead, spam, question', temperature: 0.4, max_tokens: '' } },
-                    { id: 'n3', type: 'condition', title: 'Est-ce un lead ?', x: 610, y: 150, status: 'idle', config: { expression: '{{ n2.label }}', operator: '==', value: 'lead' } },
-                    { id: 'n4', type: 'ai.generation', title: 'Rédiger la réponse', x: 890, y: 40, status: 'idle', config: { model: 'anthropic/claude-sonnet-5', prompt: 'Rédige une réponse commerciale courte.', temperature: 0.4, max_tokens: '' } },
-                    { id: 'n5', type: 'email', title: 'Envoyer la réponse', x: 1170, y: 40, status: 'idle', config: { to: '{{ trigger.email }}', subject: 'Merci pour votre message', body: 'Bonjour {{ trigger.name }}…' } },
-                    { id: 'n6', type: 'http', title: 'Noter le spam', x: 890, y: 260, status: 'idle', config: { method: 'POST', url: 'https://api.exemple.com/spam' } },
-                    { id: 'n7', type: 'output', title: 'Capturer le résultat', x: 1170, y: 260, status: 'idle', config: {} },
+                    { id: 'n1', type: 'schedule', title: 'Chaque matin', x: 60, y: 210, status: 'idle', config: { cron: '0 8 * * 1-5', sample_input: '{ "statut": "en_attente" }' } },
+                    { id: 'n2', type: 'http', title: 'Lister les devis', x: 330, y: 210, status: 'idle', config: { method: 'GET', url: 'https://erp.exemple.com/v1/devis?statut=en_attente', headers: '', body: '', integration_id: '', failure_policy: 'fail' } },
+                    { id: 'n3', type: 'logic.batch', title: 'Relancer chaque devis', x: 610, y: 210, status: 'idle', config: { expression: '{{ erp.body.devis }}', failure_policy: 'continue' } },
+                    { id: 'n4', type: 'email', title: 'Relancer le client', x: 950, y: 130, status: 'idle', config: { to: '{{ item.email }}', subject: 'Relance devis {{ item.reference }} ({{ batch.index }}/{{ batch.total }})', body: 'Bonjour {{ item.contact }}, votre devis {{ item.reference }} du {{ item.date_emission }} reste sans réponse. Sauriez-vous nous dire où il en est ?', integration_id: '' } },
+                    { id: 'n5', type: 'output', title: 'Synthèse de la relance', x: 950, y: 320, status: 'idle', config: {} },
                 ],
                 edges: [
                     { id: 'e1', from: 'n1', fromPort: 'out', to: 'n2' },
                     { id: 'e2', from: 'n2', fromPort: 'out', to: 'n3' },
-                    { id: 'e3', from: 'n3', fromPort: 'true', to: 'n4' },
-                    { id: 'e4', from: 'n3', fromPort: 'false', to: 'n6' },
-                    { id: 'e5', from: 'n4', fromPort: 'out', to: 'n5' },
-                    { id: 'e6', from: 'n6', fromPort: 'out', to: 'n7' },
+                    { id: 'e3', from: 'n3', fromPort: 'item', to: 'n4' },
+                    { id: 'e4', from: 'n3', fromPort: 'done', to: 'n5' },
                 ],
                 selection: null, // { kind: 'node'|'edge', id }
                 connecting: null, // { fromId, fromPort, x, y }
@@ -237,19 +249,30 @@
                 drawerOpen: false,
                 logs: [],
                 runSummary: null,
-                testOpen: false,
-                testJson: JSON.stringify(
-                    { email: 'client@example.com', name: 'Aina', message: 'Bonjour, je souhaite un devis pour le pack Pro.' },
-                    null,
-                    2,
-                ),
-                testError: null,
+                /* Erreur de l'input d'échantillon du déclencheur (affichée dans l'inspecteur, sous le champ) */
+                sampleError: null,
                 paletteOpen: true,
                 inspectorOpen: true,
                 inspectorTab: 'settings',
                 regenerateOpen: false,
                 /* Aide-mémoire des variables de l'inspecteur IA (repliable) */
                 aiCheatOpen: false,
+                /* Aide-mémoire du contexte d'itération (node logic.batch) */
+                batchCheatOpen: false,
+                batchVariables: [
+                    { expr: '{{ item.champ }}', desc: 'Champ de l’élément courant' },
+                    { expr: '{{ item }}', desc: 'L’élément courant entier (valeur brute)' },
+                    { expr: '{{ batch.index }}', desc: 'Position de l’item, à partir de 1' },
+                    { expr: '{{ batch.total }}', desc: 'Nombre d’items de la liste' },
+                ],
+                /* Groupes « item » du journal d'exécution : repliables (ouverts par défaut) */
+                collapsedItems: {},
+                /* Items de démonstration de la boucle (run testé : 3 devis, 1 échec) */
+                demoItems: [
+                    { reference: 'D-2026-1041', contact: 'Kadia R.', email: 'kadia@exemple.com' },
+                    { reference: 'D-2026-1042', contact: 'Boutique MDA', email: '' },
+                    { reference: 'D-2026-1043', contact: 'Hery T.', email: 'hery@exemple.com' },
+                ],
                 /* Intégrations de l'équipe (props, jamais de credential) */
                 integrations: [
                     { id: 1, name: 'CRM API — production', type: 'generic_http' },
@@ -338,6 +361,32 @@
                 }
                 return paths;
             },
+            /* Journal groupé : les lignes marquées d'un index d'item forment
+               des sous-groupes « item 1…N » (statut par item), les autres
+               restent des lignes à plat. */
+            logGroups() {
+                const segments = [];
+                let current = null;
+                this.logs.forEach((l) => {
+                    if (l.item == null) {
+                        current = null;
+                        segments.push({ kind: 'line', line: l });
+                        return;
+                    }
+                    if (!current || current.item !== l.item) {
+                        current = { kind: 'group', item: l.item, total: l.total, label: l.itemLabel, status: 'ok', lines: [] };
+                        segments.push(current);
+                    }
+                    if (l.itemLabel) {
+                        current.label = l.itemLabel;
+                    }
+                    if (l.level === 'err') {
+                        current.status = 'err';
+                    }
+                    current.lines.push(l);
+                });
+                return segments;
+            },
         },
         methods: {
             /* ---------- Thème (le builder n'utilise pas le shellMixin) ---------- */
@@ -397,6 +446,49 @@
                 const a = this.portOut(from, portDef);
                 const b = this.portIn(to);
                 return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 8 };
+            },
+            /* Libellé du port d'origine d'une arête (label du catalogue si défini,
+               sinon id brut) — jamais la couleur seule sur le canvas. */
+            portLabel(edge) {
+                const from = this.nodeById[edge.from];
+                const portDef = from
+                    ? (NODE_TYPES[from.type].outputs || []).find((p) => p.id === edge.fromPort)
+                    : null;
+                return (portDef && portDef.label) || edge.fromPort;
+            },
+            /* Corps d'une boucle : nodes atteignables depuis la sortie « item »
+               sans retraverser le node batch ni entrer dans la fermeture de « done »
+               (règles de graphe — même définition que la validation à la sauvegarde). */
+            batchBodyOf(batchId) {
+                const doneClosure = new Set();
+                const doneQueue = this.edges.filter((e) => e.from === batchId && e.fromPort === 'done').map((e) => e.to);
+                while (doneQueue.length) {
+                    const id = doneQueue.shift();
+                    if (doneClosure.has(id)) {
+                        continue;
+                    }
+                    doneClosure.add(id);
+                    this.edges.filter((e) => e.from === id).forEach((e) => doneQueue.push(e.to));
+                }
+                const body = [];
+                const seen = new Set([batchId, ...doneClosure]);
+                const queue = this.edges.filter((e) => e.from === batchId && e.fromPort === 'item').map((e) => e.to);
+                while (queue.length) {
+                    const id = queue.shift();
+                    if (seen.has(id)) {
+                        continue;
+                    }
+                    seen.add(id);
+                    const node = this.nodeById[id];
+                    if (node) {
+                        body.push(node);
+                    }
+                    this.edges.filter((e) => e.from === id).forEach((e) => queue.push(e.to));
+                }
+                return body;
+            },
+            toggleItemGroup(item) {
+                this.collapsedItems = { ...this.collapsedItems, [item]: !this.collapsedItems[item] };
             },
             connectPath() {
                 if (!this.connecting) {
@@ -663,29 +755,36 @@
                 }, 800);
             },
 
-            /* ---------- Test d'exécution (input d'échantillon + run simulé) ---------- */
-            openTest() {
+            /* ---------- Test d'exécution (sample stocké dans le déclencheur, plus de popup) ---------- */
+            sampleOf() {
+                const trigger = this.nodes.find((n) => NODE_TYPES[n.type] && NODE_TYPES[n.type].cat === 'trigger');
+                const raw = trigger && trigger.config && typeof trigger.config.sample_input === 'string' ? trigger.config.sample_input : '';
+                return { trigger, raw };
+            },
+
+            runTest() {
                 if (this.running) {
                     return;
                 }
-                this.validateTestJson();
-                this.testOpen = true;
-            },
-
-            validateTestJson() {
-                try {
-                    JSON.parse(this.testJson);
-                    this.testError = null;
-                } catch (e) {
-                    this.testError = `JSON invalide — ${e.message}`;
-                }
-            },
-
-            launchTest() {
-                if (this.testError || !this.testJson.trim()) {
+                const { trigger, raw } = this.sampleOf();
+                if (!trigger) {
+                    this.$toast({ title: 'Aucun déclencheur', description: 'Ajoutez un node déclencheur pour tester le workflow.', type: 'error' });
                     return;
                 }
-                this.testOpen = false;
+                try {
+                    if (raw.trim()) {
+                        JSON.parse(raw);
+                    }
+                } catch (e) {
+                    /* JSON invalide : message d'erreur en bas, comme l'ancienne dialog —
+                       l'inspecteur s'ouvre sur le déclencheur, sous le champ. */
+                    this.sampleError = `JSON invalide — ${e.message}`;
+                    this.selectNode(trigger.id);
+                    this.inspectorTab = 'settings';
+                    this.inspectorOpen = true;
+                    return;
+                }
+                this.sampleError = null;
                 this.runWorkflow();
             },
 
@@ -693,12 +792,14 @@
                 if (this.running) {
                     return;
                 }
-                let sampleKeys = 0;
+                const { trigger, raw } = this.sampleOf();
+                let sample = {};
                 try {
-                    sampleKeys = Object.keys(JSON.parse(this.testJson)).length;
+                    sample = raw.trim() ? JSON.parse(raw) : {};
                 } catch (e) {
-                    sampleKeys = 0;
+                    return;
                 }
+                const sampleKeys = Object.keys(sample).length;
                 this.running = true;
                 this.drawerOpen = true;
                 this.logs = [];
@@ -708,10 +809,32 @@
                 });
                 this.t0 = performance.now();
                 this.log('système', `Validation du graphe… ${this.nodes.length} nodes, ${this.edges.length} arêtes — OK`, 'info');
+                /* Règles de graphe des boucles (même messages que la validation à la sauvegarde) */
+                this.nodes.filter((n) => n.type === 'logic.batch').forEach((b) => {
+                    const itemTargets = this.edges.filter((e) => e.from === b.id && e.fromPort === 'item');
+                    const doneTargets = this.edges.filter((e) => e.from === b.id && e.fromPort === 'done');
+                    if (!itemTargets.length) {
+                        this.log('système', `Boucle « ${b.title} » : le corps de la boucle est vide : connectez au moins un node à la sortie « item ».`, 'err');
+                    } else if (doneTargets.length !== 1) {
+                        this.log('système', `Boucle « ${b.title} » : la sortie « done » doit avoir exactement une reprise, en a ${doneTargets.length}.`, 'err');
+                    } else {
+                        const body = this.batchBodyOf(b.id);
+                        this.log('système', `Boucle « ${b.title} » : corps de ${body.length} node${body.length > 1 ? 's' : ''}, reprise « Après la boucle » unique — OK`, 'info');
+                    }
+                });
                 await this.wait(420);
-                this.log('système', `Test démarré — déclencheur : manuel, input d'échantillon (${sampleKeys} clés)`, 'info');
+                this.log('système', `Test démarré — déclencheur : ${NODE_TYPES[trigger.type].label.toLowerCase()}, input d'échantillon (${sampleKeys} clés)`, 'info');
 
-                const order = this.topoOrder();
+                /* Les nodes du corps de boucle ne sont pas exécutés au niveau
+                   principal : ils le sont une fois par item, dans la boucle. */
+                const bodyIds = new Set(
+                    this.nodes
+                        .filter((n) => n.type === 'logic.batch')
+                        .flatMap((b) => this.batchBodyOf(b.id).map((n) => n.id)),
+                );
+                const order = this.topoOrder().filter((n) => !bodyIds.has(n.id));
+                let runItems = 0;
+                let runFailed = 0;
                 for (const node of order) {
                     const def = NODE_TYPES[node.type];
                     node.status = 'running';
@@ -728,6 +851,18 @@
                             }, 1400);
                         });
                     this.log(def.label, `Terminé en ${Math.round(ms)} ms`, 'ok');
+                    if (node.type === 'logic.batch') {
+                        const result = await this.runBatch(node, def);
+                        runItems = result.processed + result.failed;
+                        runFailed = result.failed;
+                        const doneEdge = this.edges.find((ed) => ed.from === node.id && ed.fromPort === 'done');
+                        if (doneEdge) {
+                            doneEdge.flowing = true;
+                            setTimeout(() => {
+                                doneEdge.flowing = false;
+                            }, 1400);
+                        }
+                    }
                     if (node.type === 'condition') {
                         this.log(def.label, 'Évaluation : label = "lead" → branche true', 'info');
                         const other = this.edges.find((ed) => ed.from === node.id && ed.fromPort === 'false');
@@ -747,15 +882,72 @@
                         }
                     }
                     if (node.type === 'output') {
-                        this.log(def.label, 'Résultat final exposé — fin du run', 'ok');
+                        this.log(def.label, `Résultat final exposé : { processed: ${runItems - runFailed}, failed: ${runFailed} } — fin du run`, 'ok');
                     }
                     await this.wait(120);
                 }
                 const total = Math.round(performance.now() - this.t0);
-                this.runSummary = { ok: true, nodes: order.length, ms: total };
+                this.runSummary = { ok: true, nodes: order.length, ms: total, items: runItems, failed: runFailed };
                 this.log('système', `Test terminé avec succès en ${(total / 1000).toFixed(1)} s`, 'ok');
                 this.running = false;
-                this.$toast({ title: 'Test réussi', description: `${order.length} nodes · ${(total / 1000).toFixed(1)} s`, type: 'success' });
+                this.$toast({ title: 'Test réussi', description: `${order.length} nodes · ${runItems} items · ${(total / 1000).toFixed(1)} s`, type: 'success' });
+            },
+
+            /* ---------- Boucle logic.batch : exécution séquentielle par item ---------- */
+            async runBatch(node, def) {
+                const body = this.batchBodyOf(node.id);
+                const policy = node.config.failure_policy === 'continue' ? 'continue' : 'fail';
+                const items = this.demoItems;
+                this.log(def.label, `Liste résolue : ${items.length} items (plafond : 100) — politique d'échec : ${policy}`, 'info');
+                let processed = 0;
+                let failed = 0;
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    const itemLabel = `devis ${item.reference} · ${item.contact}`;
+                    const mark = { item: i + 1, total: items.length, itemLabel };
+                    node.status = 'running';
+                    this.log(def.label, `Item ${i + 1}/${items.length} — contexte posé : {{ item }}, {{ batch.index }} = ${i + 1}, {{ batch.total }} = ${items.length}`, 'info', null, mark);
+                    const itemEdge = this.edges.find((ed) => ed.from === node.id && ed.fromPort === 'item');
+                    if (itemEdge) {
+                        itemEdge.flowing = true;
+                        setTimeout(() => {
+                            itemEdge.flowing = false;
+                        }, 1400);
+                    }
+                    let itemFailed = false;
+                    for (const bn of body) {
+                        const bDef = NODE_TYPES[bn.type];
+                        bn.status = 'running';
+                        this.log(bDef.label, `Démarrage — ${bn.title}`, 'info', null, mark);
+                        const bMs = 320 + Math.random() * 420;
+                        await this.wait(bMs);
+                        /* Item de démonstration sans e-mail : l'interpolation
+                           {{ item.email }} ne résout pas → échec de l'envoi. */
+                        if (bn.type === 'email' && !item.email) {
+                            itemFailed = true;
+                            bn.status = 'error';
+                            this.log(bDef.label, `Échec — destinataire vide : {{ item.email }} non résolu pour cet item`, 'err', null, mark);
+                            break;
+                        }
+                        bn.status = 'ok';
+                        this.log(bDef.label, `Envoyé à {{ item.email }} → ${item.email} — terminé en ${Math.round(bMs)} ms`, 'ok', null, mark);
+                    }
+                    if (itemFailed) {
+                        failed++;
+                        if (policy === 'fail') {
+                            this.log(def.label, 'Politique « fail » : la boucle s’arrête au premier item en échec — le run échoue, « done » n’est pas atteint.', 'err', null, mark);
+                            node.status = 'error';
+                            return { processed, failed };
+                        }
+                        this.log(def.label, `Politique « continue » : item compté en échec, passage au suivant.`, 'info', null, mark);
+                    } else {
+                        processed++;
+                    }
+                    await this.wait(140);
+                }
+                node.status = 'ok';
+                this.log(def.label, `Boucle terminée — sortie : { processed: ${processed}, failed: ${failed} }`, 'ok');
+                return { processed, failed };
             },
             topoOrder() {
                 // BFS depuis les déclencheurs
@@ -785,11 +977,14 @@
             wait(ms) {
                 return new Promise((resolve) => setTimeout(resolve, ms));
             },
-            log(node, msg, level, usage) {
+            log(node, msg, level, usage, extra) {
                 const t = ((performance.now() - this.t0) / 1000).toFixed(2);
                 const entry = { t: `${t}s`, node, msg, level };
                 if (usage) {
                     entry.usage = usage;
+                }
+                if (extra) {
+                    Object.assign(entry, extra);
                 }
                 this.logs.push(entry);
                 this.$nextTick(() => {

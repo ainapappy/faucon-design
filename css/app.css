@@ -1185,12 +1185,58 @@
     display: flex;
     align-items: center;
     gap: 7px;
+    width: 100%;
+    padding: 3px 4px;
+    margin-bottom: 4px;
+    border: none;
+    border-radius: var(--r-sm);
+    background: none;
+    cursor: pointer;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.07em;
+    text-align: left;
     color: var(--muted-foreground);
-    margin-bottom: 7px;
+    transition: color 0.12s ease, background 0.12s ease;
+}
+
+.pal-group-title:hover {
+    color: var(--foreground);
+    background: var(--accent);
+}
+
+.pal-chevron {
+    margin-left: auto;
+    flex: none;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pal-chevron.pal-chevron-open {
+    transform: rotate(-180deg);
+}
+
+.pal-group-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pal-group-body.open {
+    grid-template-rows: 1fr;
+}
+
+.pal-group-inner {
+    overflow: hidden;
+    min-height: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pal-group-body.open .pal-group-inner {
+    opacity: 1;
+    transform: none;
 }
 
 .pal-dot {
@@ -1699,6 +1745,85 @@
 .log-msg.ok { color: var(--success); }
 .log-msg.err { color: var(--destructive); }
 .log-msg.info { color: var(--info); }
+
+/* ---- Journal groupé par item (node Boucle / logic.batch) ---- */
+.log-item {
+    animation: fade-up 0.25s ease both;
+}
+
+.log-item-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 6px 0 2px;
+    padding: 4px 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
+    font-family: var(--font-sans);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--foreground);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+
+.log-item-head:hover {
+    border-color: color-mix(in srgb, var(--foreground) 25%, var(--border));
+}
+
+.log-item-head .ic {
+    color: var(--muted-foreground);
+    flex: none;
+}
+
+.log-item.failed .log-item-head {
+    border-color: color-mix(in srgb, var(--destructive) 35%, var(--border));
+    background: color-mix(in srgb, var(--destructive) 8%, transparent);
+}
+
+.log-item-index {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--muted-foreground);
+    flex: none;
+}
+
+.log-item-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.log-item-status {
+    flex: none;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 1px 8px;
+    border-radius: 999px;
+}
+
+.log-item-status.ok {
+    color: var(--success);
+    background: var(--success-soft);
+}
+
+.log-item-status.err {
+    color: var(--destructive);
+    background: var(--danger-soft);
+}
+
+.log-item-lines {
+    margin-left: 11px;
+    padding-left: 14px;
+    border-left: 2px solid var(--border);
+}
 
 .exec-summary {
     display: flex;

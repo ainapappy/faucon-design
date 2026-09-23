@@ -538,6 +538,8 @@
                             <option value="smtp">SMTP / E-mail</option>
                         </select>
                     </div>
+                    <!-- Merge par clé côté backend : les non-secrets sont pré-remplis à l'édition, les secrets vides sont conservés -->
+                    <p class="field-hint" v-if="integrationForm.mode === 'edit'">Les champs secrets laissés vides sont conservés.</p>
 
                     <!-- Champs : HTTP générique -->
                     <template v-if="integrationForm.type === 'generic_http'">
@@ -610,7 +612,8 @@
                             </div>
                             <div class="field">
                                 <label class="label" for="int-port">Port</label>
-                                <input id="int-port" class="input text-mono" type="number" min="1" max="65535" v-model="integrationForm.port" placeholder="587">
+                                <!-- type="text" inputmode="numeric" : un v-model sur type="number" caste en nombre (Vue looseToNumber) et casse le contrat chaîne du formulaire ; la validation 1-65535 vit dans le JS miroir du backend -->
+                                <input id="int-port" class="input text-mono" type="text" inputmode="numeric" v-model="integrationForm.port" placeholder="587">
                             </div>
                         </div>
                         <div class="field">
@@ -902,7 +905,7 @@
                 },
                 get canSaveIntegration() {
                     const f = this.integrationForm;
-                    if (!f.name) return false;
+                    if (!f?.name) return false;
                     if (f.type === 'generic_http') return !!f.baseUrl;
                     return !!f.host && !!f.port;
                 },
