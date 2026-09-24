@@ -148,7 +148,7 @@
                     <div class="page-header anim-in d-1">
                         <div>
                             <h1 class="page-title">Workflows</h1>
-                            <p class="page-desc">6 workflows dans {{ currentTeam }} — activez, éditez ou dupliquez vos automatisations.</p>
+                            <p class="page-desc">{{ workflows.length }} workflows dans {{ currentTeam }} — activez, éditez ou dupliquez vos automatisations.</p>
                         </div>
                         <div class="page-actions">
                             <button class="btn btn-outline" @click="$toast({title:'Import', description:'Glissez un fichier JSON exporté', type:'info'})">
@@ -181,7 +181,6 @@
                             <select class="select" v-model="sort" style="width:150px;">
                                 <option value="recent">Plus récents</option>
                                 <option value="name">Nom (A→Z)</option>
-                                <option value="runs">Exécutions</option>
                             </select>
                             <div class="tabs">
                                 <button class="tab" :class="{ active: view === 'grid' }" @click="view = 'grid'" aria-label="Vue grille">
@@ -191,6 +190,23 @@
                                     <ic name="list" :size="14"></ic>
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Barre d'actions groupées — vue liste uniquement, même pattern que executions -->
+                    <div class="toolbar anim-in" v-if="view === 'list' && filtered.length" style="margin-bottom:14px;">
+                        <p class="text-sm text-muted" aria-live="polite" style="margin:0;">{{ checked.length }} sur {{ paginated.length }} sélectionné{{ checked.length > 1 ? 's' : '' }}</p>
+                        <button class="btn btn-ghost" type="button" style="padding:4px 8px;" @click="toggleAll">{{ allSelected ? 'Tout désélectionner' : 'Tout sélectionner' }}</button>
+                        <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+                            <div style="position:relative;" v-click-outside="() => massOpen = false">
+                                <button class="btn btn-outline" type="button" @click="massOpen = !massOpen">
+                                    {{ massActionLabel }} <ic name="chevron-down" :size="15"></ic>
+                                </button>
+                                <div class="dropdown" v-if="massOpen" style="top:calc(100% + 6px); right:0; width:250px;">
+                                    <button class="dropdown-item danger" type="button" @click="massAction = 'delete'; massOpen = false"><ic name="trash-2" :size="15"></ic> Supprimer la sélection</button>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" type="button" :disabled="!massAction || checked.length === 0" @click="runMassAction">Appliquer</button>
                         </div>
                     </div>
 
@@ -204,8 +220,8 @@
                     </div>
 
                     <!-- Vue grille -->
-                    <div class="wf-grid" v-if="view === 'grid' && filtered.length">
-                        <div class="card card-hover wf-card anim-in" v-for="(w, i) in filtered" :key="w.id" :class="'d-' + (i % 6 + 1)">
+                    <div class="wf-grid" v-if="view === 'grid' && paginated.length">
+                        <div class="card card-hover wf-card anim-in" v-for="(w, i) in paginated" :key="w.id" :class="'d-' + (i % 6 + 1)">
                             <div class="wf-card-head">
                                 <span class="wf-trigger-icon" :style="{ background: 'color-mix(in srgb, ' + trigger(w.trigger).color + ' 13%, transparent)', color: trigger(w.trigger).color }">
                                     <ic :name="trigger(w.trigger).icon" :size="17"></ic>
@@ -249,11 +265,29 @@
                         </div>
                     </div>
 
+                    <!-- Pagination serveur (12 workflows/page) — vue grille -->
+                    <div class="anim-in d-3" v-if="view === 'grid' && pageCount > 1"
+                         style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px;">
+                        <p class="text-sm text-muted" style="margin:0;">Page {{ page }} sur {{ pageCount }} — {{ filtered.length }} workflows</p>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-outline btn-sm" :disabled="page <= 1" @click="goToPage(page - 1)">
+                                <ic name="chevron-left" :size="15"></ic> Précédente
+                            </button>
+                            <button class="btn btn-outline btn-sm" :disabled="page >= pageCount" @click="goToPage(page + 1)">
+                                Suivante <ic name="chevron-right" :size="15"></ic>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Vue liste -->
-                    <div class="card anim-in d-3" v-if="view === 'list' && filtered.length" style="overflow-x:auto;">
+                    <div class="card anim-in d-3" v-if="view === 'list' && paginated.length" style="overflow-x:auto;">
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width:36px;">
+                                        <input type="checkbox" class="checkbox" :class="{ 'checkbox-indeterminate': checked.length > 0 && !allSelected }"
+                                               :checked="allSelected" @change="toggleAll" aria-label="Tout sélectionner">
+                                    </th>
                                     <th>Workflow</th>
                                     <th>Déclencheur</th>
                                     <th>Nodes</th>
@@ -264,7 +298,9 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="w in filtered" :key="w.id" class="clickable">
+                                <tr v-for="w in paginated" :key="w.id" class="clickable"
+                                    :style="checked.includes(w.id) ? 'background: color-mix(in srgb, var(--muted) 40%, transparent)' : ''">
+                                    <td @click.stop><input type="checkbox" class="checkbox" :checked="checked.includes(w.id)" @change="toggleRow(w)" :aria-label="'Sélectionner ' + w.name"></td>
                                     <td @click="goBuilder(w)">
                                         <div style="display:flex; align-items:center; gap:9px;">
                                             <span class="wf-trigger-icon" style="width:28px; height:28px;"
@@ -291,6 +327,20 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Pagination serveur (12 workflows/page) — vue liste -->
+                    <div class="anim-in d-3" v-if="view === 'list' && pageCount > 1"
+                         style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px;">
+                        <p class="text-sm text-muted" style="margin:0;">Page {{ page }} sur {{ pageCount }} — {{ filtered.length }} workflows</p>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-outline btn-sm" :disabled="page <= 1" @click="goToPage(page - 1)">
+                                <ic name="chevron-left" :size="15"></ic> Précédente
+                            </button>
+                            <button class="btn btn-outline btn-sm" :disabled="page >= pageCount" @click="goToPage(page + 1)">
+                                Suivante <ic name="chevron-right" :size="15"></ic>
+                            </button>
+                        </div>
                     </div>
                 </main>
             </div>
@@ -352,9 +402,14 @@
                     chip: 'all',
                     view: 'grid',
                     sort: 'recent',
+                    page: 1,
+                    perPage: 12,
                     menuFor: null,
                     createOpen: false,
                     processing: false,
+                    checked: ['wf-1', 'wf-2'],
+                    massAction: '',
+                    massOpen: false,
                     createForm: { name: '', desc: '' },
                     workflows: [
                         { id: 'wf-1', name: 'Traitement des nouveaux leads', desc: 'Webhook → classification IA → réponse e-mail automatisée au prospect.', trigger: 'webhook', active: true, nodes: 5, lastRun: 'il y a 4 min', success: '98,4 %', runs: 412 },
@@ -363,6 +418,27 @@
                         { id: 'wf-4', name: 'Modération des formulaires', desc: 'Détecte le spam et les demandes prioritaires dans les formulaires du site.', trigger: 'webhook', active: false, nodes: 5, lastRun: 'hier', success: '97,2 %', runs: 154 },
                         { id: 'wf-5', name: 'Sync GitHub → canal #dev', desc: 'Annonce les releases et les issues « bug » dans le canal de l’équipe.', trigger: 'webhook', active: true, nodes: 3, lastRun: 'il y a 26 min', success: '99,8 %', runs: 97 },
                         { id: 'wf-6', name: 'Import leads événement', desc: 'Nettoie et déduplique les leads collectés lors des salons.', trigger: 'manual', active: false, nodes: 4, lastRun: '—', success: '—', runs: 12 },
+                        // Suite du jeu de démo : 26 workflows au total → pagination 12/page = 3 pages.
+                        { id: 'wf-7', name: 'Relance des devis en attente', desc: 'Cible les devis sans réponse depuis 5 jours et relance le contact par e-mail.', trigger: 'schedule', active: true, nodes: 6, lastRun: 'il y a 2 h', success: '97,6 %', runs: 143 },
+                        { id: 'wf-8', name: 'Qualification des opportunités', desc: 'Score IA sur chaque opportunité CRM et routage vers le bon commercial.', trigger: 'webhook', active: true, nodes: 7, lastRun: 'il y a 12 min', success: '96,3 %', runs: 88 },
+                        { id: 'wf-9', name: 'Relance panier abandonné', desc: 'E-mail de rappel personnalisé 1 h après l’abandon, puis coupon à 24 h.', trigger: 'schedule', active: true, nodes: 5, lastRun: 'il y a 35 min', success: '94,8 %', runs: 267 },
+                        { id: 'wf-10', name: 'Alertes de stock critiques', desc: 'Surveille les niveaux de stock et alerte les achats sous le seuil défini.', trigger: 'schedule', active: true, nodes: 4, lastRun: 'il y a 3 h', success: '99,2 %', runs: 321 },
+                        { id: 'wf-11', name: 'Triage des tickets support', desc: 'Classe les tickets par urgence et équipe, escalade les cas critiques.', trigger: 'webhook', active: true, nodes: 6, lastRun: 'il y a 8 min', success: '98,9 %', runs: 512 },
+                        { id: 'wf-12', name: 'Enquête de satisfaction NPS', desc: 'Envoie l’enquête 7 jours après livraison et archive les réponses.', trigger: 'schedule', active: false, nodes: 5, lastRun: 'mar. 09:00', success: '100 %', runs: 76 },
+                        { id: 'wf-13', name: 'Anniversaires clients', desc: 'Vœux personnalisés et code promo offert le jour de l’anniversaire.', trigger: 'schedule', active: true, nodes: 3, lastRun: 'il y a 5 h', success: '99,5 %', runs: 190 },
+                        { id: 'wf-14', name: 'Win-back clients inactifs', desc: 'Détecte les clients sans commande depuis 90 jours et propose une offre.', trigger: 'schedule', active: false, nodes: 6, lastRun: '—', success: '—', runs: 0 },
+                        { id: 'wf-15', name: 'Confirmation de commandes', desc: 'E-mail de confirmation avec suivi dès la validation du paiement.', trigger: 'webhook', active: true, nodes: 4, lastRun: 'il y a 1 min', success: '99,9 %', runs: 1043 },
+                        { id: 'wf-16', name: 'Alerte mentions de marque', desc: 'Surveille les mentions de la marque et notifie l’équipe communication.', trigger: 'webhook', active: true, nodes: 4, lastRun: 'il y a 22 min', success: '97,1 %', runs: 205 },
+                        { id: 'wf-17', name: 'Synchronisation CRM quotidienne', desc: 'Pousse les nouveaux leads qualifiés vers le CRM chaque nuit.', trigger: 'schedule', active: true, nodes: 5, lastRun: 'il y a 7 h', success: '98,2 %', runs: 158 },
+                        { id: 'wf-18', name: 'Newsletter hebdomadaire', desc: 'Compile les actualités du secteur en newsletter envoyée le vendredi.', trigger: 'schedule', active: false, nodes: 6, lastRun: 'ven. 08:00', success: '96,7 %', runs: 64 },
+                        { id: 'wf-19', name: 'Détection de fraude affiliés', desc: 'Analyse les conversions suspectes et bloque les commissions à risque.', trigger: 'webhook', active: true, nodes: 7, lastRun: 'il y a 41 min', success: '95,4 %', runs: 112 },
+                        { id: 'wf-20', name: 'Nettoyage des doublons CRM', desc: 'Fusionne les doublons de contacts et normalise les numéros.', trigger: 'schedule', active: true, nodes: 4, lastRun: 'il y a 9 h', success: '99,0 %', runs: 87 },
+                        { id: 'wf-21', name: 'Rapport mensuel direction', desc: 'Agrège les KPIs du mois en PDF et l’envoie à la direction.', trigger: 'schedule', active: true, nodes: 5, lastRun: '1 sept.', success: '100 %', runs: 3 },
+                        { id: 'wf-22', name: 'Suivi des expéditions', desc: 'Notifie le client à chaque changement de statut du colis.', trigger: 'webhook', active: true, nodes: 4, lastRun: 'il y a 18 min', success: '98,7 %', runs: 398 },
+                        { id: 'wf-23', name: 'Relance des factures impayées', desc: 'E-mails de rappel échelonnés à J+7, J+15 et J+30.', trigger: 'schedule', active: true, nodes: 5, lastRun: 'il y a 4 h', success: '97,8 %', runs: 176 },
+                        { id: 'wf-24', name: 'Collecte quotidienne de données', desc: 'Archive les métriques des intégrations dans l’historique des exécutions.', trigger: 'schedule', active: true, nodes: 3, lastRun: 'il y a 6 h', success: '99,6 %', runs: 412 },
+                        { id: 'wf-25', name: 'Réponse auto aux demandes de devis', desc: 'Génère une proposition de devis par IA et la transmet au commercial.', trigger: 'webhook', active: false, nodes: 8, lastRun: '—', success: '92,1 %', runs: 45 },
+                        { id: 'wf-26', name: 'Archivage des exécutions anciennes', desc: 'Exporte puis purge les exécutions au-delà de la rétention légale.', trigger: 'manual', active: true, nodes: 3, lastRun: 'il y a 2 j', success: '100 %', runs: 12 },
                     ],
                 };
             },
@@ -376,13 +452,50 @@
                     });
                     if (this.sort === 'name') {
                         list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-                    } else if (this.sort === 'runs') {
-                        list = [...list].sort((a, b) => b.runs - a.runs);
                     }
                     return list;
                 },
+                pageCount() {
+                    return Math.max(1, Math.ceil(this.filtered.length / this.perPage));
+                },
+                paginated() {
+                    const start = (this.page - 1) * this.perPage;
+                    return this.filtered.slice(start, start + this.perPage);
+                },
+                allSelected() {
+                    return this.paginated.length > 0 && this.checked.length === this.paginated.length;
+                },
+                massActionLabel() {
+                    if (this.massAction === 'delete') return 'Supprimer la sélection';
+                    return 'Actions massives';
+                },
+            },
+            watch: {
+                filtered() {
+                    this.checked = [];
+                    this.page = 1;
+                },
             },
             methods: {
+                goToPage(p) {
+                    this.page = Math.min(Math.max(1, p), this.pageCount);
+                },
+                toggleRow(w) {
+                    const i = this.checked.indexOf(w.id);
+                    if (i >= 0) this.checked.splice(i, 1);
+                    else this.checked.push(w.id);
+                },
+                toggleAll() {
+                    this.checked = this.allSelected ? [] : this.paginated.map((w) => w.id);
+                },
+                runMassAction() {
+                    const count = this.checked.length;
+                    const first = this.workflows.find((x) => x.id === this.checked[0]);
+                    this.workflows = this.workflows.filter((x) => !this.checked.includes(x.id));
+                    this.$toast({ title: 'Suppression programmée', description: count + ' workflow(s) vont être supprimé(s) (ex. ' + (first ? first.name : '') + ').', type: 'info' });
+                    this.checked = [];
+                    this.massAction = '';
+                },
                 trigger(t) {
                     return {
                         webhook: { icon: 'webhook', color: 'var(--cat-1)', label: 'Webhook' },
